@@ -12,7 +12,6 @@ const DAILY_TARGETS = [
 ];
 
 function getDailyTarget(dateStr) {
-  // Deterministic seed based on date string
   let hash = 0;
   for (let i = 0; i < dateStr.length; i++) {
     hash = (hash << 5) - hash + dateStr.charCodeAt(i);
@@ -30,6 +29,12 @@ function getTemperature(rank) {
   return { label: 'Freezing', color: 'slate', icon: '🧊' };
 }
 
+function isValidGeminiKey(key) {
+  if (!key || typeof key !== 'string') return false;
+  const clean = key.trim();
+  return clean.startsWith('AIzaSy') && clean.length >= 35;
+}
+
 function offlineEstimateRank(guess, target) {
   const g = guess.toLowerCase().trim();
   const t = target.toLowerCase().trim();
@@ -38,23 +43,31 @@ function offlineEstimateRank(guess, target) {
     return 1;
   }
 
-  // Common simple heuristic distance
   let score = 5000;
-  if (g.length === t.length) score -= 500;
+  if (g.length === t.length) score -= 400;
   if (g[0] === t[0]) score -= 800;
 
-  // Keyword associations
   const relatedGroups = [
     ['light', 'beacon', 'tower', 'coast', 'sea', 'ocean', 'ship', 'fog', 'lamp', 'lighthouse'],
     ['fire', 'lava', 'magma', 'mountain', 'eruption', 'ash', 'smoke', 'crater', 'volcano'],
     ['water', 'underwater', 'deep', 'periscope', 'sonar', 'dive', 'torpedo', 'submarine'],
     ['space', 'orbit', 'telecom', 'signal', 'earth', 'dish', 'rocket', 'satellite'],
     ['north', 'direction', 'needle', 'map', 'navigate', 'south', 'east', 'west', 'compass'],
+    ['stars', 'sky', 'lens', 'observatory', 'astronomy', 'space', 'galaxy', 'telescope'],
+    ['desert', 'water', 'palm', 'sand', 'green', 'mirage', 'caravan', 'oasis'],
+    ['ice', 'cold', 'snow', 'frozen', 'arctic', 'mountain', 'frost', 'glacier'],
+    ['church', 'temple', 'dome', 'gothic', 'monument', 'steeple', 'cathedral'],
+    ['instrument', 'music', 'sound', 'melody', 'blues', 'mouth', 'harmonica'],
+    ['music', 'symphony', 'violin', 'conductor', 'instruments', 'band', 'orchestra'],
+    ['egypt', 'stone', 'monument', 'tomb', 'pharaoh', 'desert', 'triangle', 'pyramid'],
+    ['coffee', 'caffeine', 'roast', 'morning', 'cup', 'brew', 'latte', 'espresso'],
+    ['maze', 'puzzle', 'minotaur', 'path', 'lost', 'corridor', 'labyrinth'],
+    ['stars', 'zodiac', 'orion', 'sky', 'night', 'astronomy', 'cluster', 'constellation']
   ];
 
   for (const group of relatedGroups) {
     if (group.includes(t) && group.includes(g)) {
-      score = Math.floor(Math.random() * 200 + 15);
+      score = Math.floor(Math.random() * 250 + 25);
       break;
     }
   }
@@ -63,15 +76,19 @@ function offlineEstimateRank(guess, target) {
 }
 
 export async function POST(req) {
+  let cleanGuess = '';
+  const dateStr = new Date().toISOString().slice(0, 10);
+  const target = getDailyTarget(dateStr);
+
   try {
-    const { guess, dateStr = new Date().toISOString().slice(0, 10) } = await req.json();
+    const body = await req.json();
+    const guess = body.guess || '';
 
     if (!guess) {
       return NextResponse.json({ error: 'Guess is required' }, { status: 400 });
     }
 
-    const cleanGuess = guess.trim();
-    const target = getDailyTarget(dateStr);
+    cleanGuess = guess.trim();
 
     // Exact match
     if (cleanGuess.toLowerCase() === target.toLowerCase()) {
@@ -87,9 +104,10 @@ export async function POST(req) {
       });
     }
 
-    const apiKey = process.env.GEMINI_API_KEY;
+    const rawKey = process.env.GEMINI_API_KEY;
+    const apiKey = rawKey ? rawKey.trim().replace(/^['"]|['"]$/g, '') : '';
 
-    if (!apiKey) {
+    if (!isValidGeminiKey(apiKey)) {
       const rank = offlineEstimateRank(cleanGuess, target);
       const temp = getTemperature(rank);
       return NextResponse.json({
@@ -147,18 +165,18 @@ Return strictly valid JSON:
       mode: 'gemini_live',
     });
   } catch (err) {
-    console.error('Semantic-climb API error:', err);
-    const target = getDailyTarget(new Date().toISOString().slice(0, 10));
-    const rank = offlineEstimateRank(guess || '', target);
+    console.error('Semantic-climb API error, falling back to offline mode:', err);
+    const rank = offlineEstimateRank(cleanGuess || 'word', target);
     const temp = getTemperature(rank);
     return NextResponse.json({
-      guess,
+      guess: cleanGuess || 'guess',
       rank,
       solved: false,
       temperature: temp.label,
       color: temp.color,
       icon: temp.icon,
-      hint: 'Rally on!',
+      hint: rank <= 300 ? 'You are super close in meaning!' : 'Keep searching different categories.',
+      mode: 'offline_fallback',
     });
   }
 }

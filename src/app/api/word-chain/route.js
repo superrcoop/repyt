@@ -1,7 +1,16 @@
 import { NextResponse } from 'next/server';
 import { GoogleGenAI } from '@google/genai';
 
-// Offline fallback dictionary for instant testing without API key
+// Fallback pool of evocative associative words
+const WORD_POOL = [
+  'Galaxy', 'Nebula', 'Orbit', 'Thunder', 'Lightning', 'Horizon', 'Mirage', 'Phoenix',
+  'Velocity', 'Prism', 'Echo', 'Tempest', 'Gravity', 'Solar', 'Spark', 'Current',
+  'Tide', 'Crystal', 'Summit', 'Cascade', 'Rhythm', 'Melody', 'Shadow', 'Beacon',
+  'Compass', 'Glacier', 'Obsidian', 'Breeze', 'Voyage', 'Zenith', 'Radiance', 'Pulse',
+  'Chasm', 'Vortex', 'Aurora', 'Eclipse', 'Sanctuary', 'Labyrinth', 'Constellation',
+  'Volcano', 'Oasis', 'Telescope', 'Archipelago', 'Avalanche', 'Meteor', 'Harmony'
+];
+
 const OFFLINE_ASSOCIATIONS = {
   ocean: ['wave', 'water', 'tide', 'blue', 'deep', 'fish', 'salt', 'coral', 'current', 'whale'],
   sun: ['light', 'heat', 'summer', 'star', 'morning', 'bright', 'energy', 'fire', 'burn'],
@@ -13,9 +22,18 @@ const OFFLINE_ASSOCIATIONS = {
   storm: ['thunder', 'lightning', 'rain', 'wind', 'cloud', 'darkness', 'hurricane', 'tempest'],
   game: ['play', 'player', 'rules', 'fun', 'level', 'score', 'arcade', 'victory', 'puzzle'],
   dream: ['sleep', 'night', 'vision', 'imagination', 'cloud', 'hope', 'fantasy', 'subconscious'],
+  wave: ['ocean', 'surf', 'sound', 'crest', 'tide', 'ripple', 'motion', 'tsunami', 'water'],
+  star: ['sky', 'night', 'shine', 'astronomy', 'constellation', 'supernova', 'galaxy', 'glow'],
 };
 
-function offlineEvaluate(currentWord, playerWord, history) {
+function isValidGeminiKey(key) {
+  if (!key || typeof key !== 'string') return false;
+  const clean = key.trim();
+  // Valid Google Gemini API keys start with AIzaSy and are ~39 characters
+  return clean.startsWith('AIzaSy') && clean.length >= 35;
+}
+
+function offlineEvaluate(currentWord, playerWord, history = []) {
   const normCurrent = currentWord.toLowerCase().trim();
   const normPlayer = playerWord.toLowerCase().trim();
 
@@ -44,80 +62,102 @@ function offlineEvaluate(currentWord, playerWord, history) {
   const knownLinks = OFFLINE_ASSOCIATIONS[normCurrent] || [];
   const isDirectKnown = knownLinks.includes(normPlayer);
 
-  // Pick counter word
-  let candidateWords = OFFLINE_ASSOCIATIONS[normPlayer] || [
-    'energy', 'spark', 'horizon', 'pulse', 'echo', 'shadow', 'motion', 'nexus', 'wonder', 'velocity'
-  ];
+  // Pick counter word from known associations or rich pool
+  let candidateWords = OFFLINE_ASSOCIATIONS[normPlayer] || WORD_POOL;
   candidateWords = candidateWords.filter(
-    (w) => !history.map((h) => h.toLowerCase()).includes(w) && w !== normPlayer && w !== normCurrent
+    (w) => !history.map((h) => h.toLowerCase()).includes(w.toLowerCase()) &&
+           w.toLowerCase() !== normPlayer &&
+           w.toLowerCase() !== normCurrent
   );
 
   const counterWord = candidateWords.length > 0
     ? candidateWords[Math.floor(Math.random() * candidateWords.length)]
-    : 'Echo';
+    : WORD_POOL[Math.floor(Math.random() * WORD_POOL.length)];
 
-  const score = isDirectKnown ? Math.floor(Math.random() * 15 + 85) : Math.floor(Math.random() * 25 + 65);
+  const score = isDirectKnown ? Math.floor(Math.random() * 15 + 85) : Math.floor(Math.random() * 25 + 68);
+
+  const wittyBanter = [
+    'Sharp connection! How about this?',
+    'Creative volley! Hit this back:',
+    'Solid link! Back to you:',
+    'Nice associative leap! Defend this:',
+    'Clean return! Rally continues:'
+  ];
 
   return {
     valid: true,
     score,
-    reason: isDirectKnown ? `Strong connection between ${currentWord} and ${playerWord}.` : `Creative associative leap!`,
+    reason: isDirectKnown
+      ? `Strong connection between ${currentWord} and ${playerWord}.`
+      : `Creative associative leap!`,
     counterWord,
-    banter: isDirectKnown ? 'Classic connection, nicely played!' : 'Bold link! Back to you:',
+    banter: isDirectKnown
+      ? 'Classic connection, nicely played!'
+      : wittyBanter[Math.floor(Math.random() * wittyBanter.length)],
   };
 }
 
 export async function POST(req) {
+  let cleanCurrent = 'Ocean';
+  let cleanPlayer = 'Wave';
+  let hist = [];
+
   try {
-    const { currentWord, playerWord, history = [], theme = 'general' } = await req.json();
+    const body = await req.json();
+    const currentWord = body.currentWord || '';
+    const playerWord = body.playerWord || '';
+    hist = body.history || [];
+    const theme = body.theme || 'general';
 
     if (!currentWord || !playerWord) {
       return NextResponse.json({ error: 'Missing currentWord or playerWord' }, { status: 400 });
     }
 
-    const cleanPlayerWord = playerWord.trim();
-    const cleanCurrentWord = currentWord.trim();
+    cleanPlayer = playerWord.trim();
+    cleanCurrent = currentWord.trim();
 
     // Check repeat in history
-    const normalizedHistory = history.map((w) => w.toLowerCase().trim());
-    if (normalizedHistory.includes(cleanPlayerWord.toLowerCase())) {
+    const normalizedHistory = hist.map((w) => w.toLowerCase().trim());
+    if (normalizedHistory.includes(cleanPlayer.toLowerCase())) {
       return NextResponse.json({
         valid: false,
         score: 0,
-        reason: `"${cleanPlayerWord}" was already used in this rally!`,
+        reason: `"${cleanPlayer}" was already used in this rally!`,
         counterWord: null,
         banter: 'No repeats allowed in the same chain! Keep it fresh.',
       });
     }
 
-    const apiKey = process.env.GEMINI_API_KEY;
+    const rawKey = process.env.GEMINI_API_KEY;
+    const apiKey = rawKey ? rawKey.trim().replace(/^['"]|['"]$/g, '') : '';
 
-    if (!apiKey) {
-      // Use offline fallback
-      const offlineResult = offlineEvaluate(cleanCurrentWord, cleanPlayerWord, history);
+    // If key is missing or not a valid Google AI Studio key format, use offline engine gracefully
+    if (!isValidGeminiKey(apiKey)) {
+      const offlineResult = offlineEvaluate(cleanCurrent, cleanPlayer, hist);
       return NextResponse.json({
         ...offlineResult,
         mode: 'offline_heuristic',
       });
     }
 
+    // Call Gemini API
     const ai = new GoogleGenAI({ apiKey });
 
     const prompt = `You are the lively referee and opponent in "Repyt", a high-speed word tennis / word association game.
-The current active word is: "${cleanCurrentWord}".
-The player answered: "${cleanPlayerWord}".
-History of words already used in this rally: [${history.join(', ')}].
+The current active word is: "${cleanCurrent}".
+The player answered: "${cleanPlayer}".
+History of words already used in this rally: [${hist.join(', ')}].
 Theme: ${theme}.
 
 Tasks:
-1. Is "${cleanPlayerWord}" a legitimate English word AND a creative/sensible semantic, cultural, or thematic association with "${cleanCurrentWord}"?
+1. Is "${cleanPlayer}" a legitimate English word AND a creative/sensible semantic, cultural, or thematic association with "${cleanCurrent}"?
    - Be generous with creative or clever leaps, metaphors, and pop culture idioms.
    - Reject non-words, keyboard smashes, completely random unlinked words, or exact repetitions.
 2. If valid, score the connection strength from 1 to 100.
 3. Provide a witty 1-sentence reaction / banter (under 15 words).
 4. If valid, supply YOUR counter-word to rally back to the player.
-   - Counter-word MUST be an association with "${cleanPlayerWord}".
-   - Counter-word MUST NOT be in the history list: [${history.join(', ')}].
+   - Counter-word MUST be an association with "${cleanPlayer}".
+   - Counter-word MUST NOT be in the history list: [${hist.join(', ')}].
    - Counter-word MUST be a single clean word (no spaces/hyphens).
 
 Return strictly JSON matching this structure:
@@ -149,9 +189,12 @@ Return strictly JSON matching this structure:
       mode: 'gemini_live',
     });
   } catch (err) {
-    console.error('Word-chain API error:', err);
-    // Graceful fallback to offline heuristic on any network/API glitch
-    const fallback = offlineEvaluate('word', 'idea', []);
-    return NextResponse.json(fallback);
+    console.error('Word-chain API error, falling back to offline mode:', err);
+    // Graceful offline fallback with the actual user input! Never crash the game.
+    const fallback = offlineEvaluate(cleanCurrent, cleanPlayer, hist);
+    return NextResponse.json({
+      ...fallback,
+      mode: 'offline_fallback',
+    });
   }
 }
