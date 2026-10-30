@@ -28,9 +28,9 @@ const OFFLINE_ASSOCIATIONS = {
 
 function isValidGeminiKey(key) {
   if (!key || typeof key !== 'string') return false;
-  const clean = key.trim();
-  // Valid Google Gemini API keys start with AIzaSy and are ~39 characters
-  return clean.startsWith('AIzaSy') && clean.length >= 35;
+  const clean = key.trim().replace(/^['"]|['"]$/g, '');
+  // Supports legacy AIzaSy keys and modern AQ.Ab keys from Google AI Studio
+  return (clean.startsWith('AIzaSy') || clean.startsWith('AQ.')) && clean.length >= 30;
 }
 
 function offlineEvaluate(currentWord, playerWord, history = []) {

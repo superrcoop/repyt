@@ -31,8 +31,8 @@ function getTemperature(rank) {
 
 function isValidGeminiKey(key) {
   if (!key || typeof key !== 'string') return false;
-  const clean = key.trim();
-  return clean.startsWith('AIzaSy') && clean.length >= 35;
+  const clean = key.trim().replace(/^['"]|['"]$/g, '');
+  return (clean.startsWith('AIzaSy') || clean.startsWith('AQ.')) && clean.length >= 30;
 }
 
 function offlineEstimateRank(guess, target) {
