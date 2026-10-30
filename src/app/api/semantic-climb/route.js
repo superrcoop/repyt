@@ -1,6 +1,8 @@
 import { NextResponse } from 'next/server';
 import { GoogleGenAI } from '@google/genai';
 
+export const maxDuration = 15;
+
 // 30 Curated rotating daily words
 const DAILY_TARGETS = [
   'Lighthouse', 'Volcano', 'Submarine', 'Satellite', 'Compass',
@@ -143,7 +145,7 @@ Return strictly valid JSON:
 }`;
 
     const response = await ai.models.generateContent({
-      model: 'gemini-3.8-flash',
+      model: 'gemini-3.5-flash-lite',
       contents: prompt,
       config: {
         responseMimeType: 'application/json',

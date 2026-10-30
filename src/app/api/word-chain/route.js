@@ -1,6 +1,8 @@
 import { NextResponse } from 'next/server';
 import { GoogleGenAI } from '@google/genai';
 
+export const maxDuration = 15;
+
 // Fallback pool of evocative associative words
 const WORD_POOL = [
   'Galaxy', 'Nebula', 'Orbit', 'Thunder', 'Lightning', 'Horizon', 'Mirage', 'Phoenix',
@@ -170,7 +172,7 @@ Return strictly JSON matching this structure:
 }`;
 
     const response = await ai.models.generateContent({
-      model: 'gemini-3.8-flash',
+      model: 'gemini-3.5-flash-lite',
       contents: prompt,
       config: {
         responseMimeType: 'application/json',
