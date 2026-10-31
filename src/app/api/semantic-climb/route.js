@@ -136,7 +136,8 @@ export async function POST(req) {
     });
 
     if (!apiRes.ok) {
-      throw new Error(`Gemini API error: ${apiRes.status}`);
+      const errBody = await apiRes.text();
+      throw new Error(`Gemini API error ${apiRes.status}: ${errBody}`);
     }
 
     const data = await apiRes.json();
@@ -168,6 +169,7 @@ export async function POST(req) {
       icon: temp.icon,
       hint: rank <= 300 ? 'You are super close in meaning!' : 'Keep searching different categories.',
       mode: 'offline_fallback',
+      detail: err.message,
     });
   }
 }

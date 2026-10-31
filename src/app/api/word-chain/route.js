@@ -154,7 +154,8 @@ export async function POST(req) {
     });
 
     if (!apiRes.ok) {
-      throw new Error(`Gemini API error: ${apiRes.status}`);
+      const errBody = await apiRes.text();
+      throw new Error(`Gemini API error ${apiRes.status}: ${errBody}`);
     }
 
     const data = await apiRes.json();
@@ -176,6 +177,7 @@ export async function POST(req) {
     return NextResponse.json({
       ...fallback,
       mode: 'offline_fallback',
+      detail: err.message,
     });
   }
 }
