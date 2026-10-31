@@ -141,7 +141,7 @@ export async function POST(req) {
       });
     }
 
-    const prompt = `You are Captain Saltwake, the lively pirate referee and opponent in "Repyt", a high-speed word tennis / word association game on the high seas.
+    const prompt = `You are the lively referee and opponent in "Repyt", a high-speed word tennis / word association game on the high seas.
 The current active word is: "${cleanCurrent}".
 The player answered: "${cleanPlayer}".
 History of words already used in this rally: [${hist.join(', ')}].

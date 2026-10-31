@@ -20,7 +20,7 @@ import {
   savePreferences,
 } from '../lib/storage';
 
-// Higgsfield high-res transparent PNG assets
+// Transparent PNG assets
 const P = 'https://images.higgs.ai/?default=1&output=webp&url=https%3A%2F%2Fd8j0ntlcm91z4.cloudfront.net%2Fuser_38xzZboKViGWJOttwIXH07lWA1P%2Fhf_';
 const SHIP_IMG = P + '20261031_024714_39df675e-5060-4528-87dc-9d0c274815aa.png&w=1600&q=90';
 const CAPT_IMG = P + '20261031_024703_a0298b6a-0117-47f1-8462-4be671d0407e.png&w=2048&q=90';
@@ -35,6 +35,7 @@ const BOX = {
   bushR: [PLANTS_IMG, 1528, 908, 499, 405]
 };
 
+// Optimized layout coordinates: portrait layout is compact and elevated for mobile-first scrolling
 const LAY = {
   land: {
     w: 1600, h: 900,
@@ -50,9 +51,9 @@ const LAY = {
     w: 800, h: 1500,
     wave: { y0: 1300, y1: 430, gap0: 1, gap1: 0.7 },
     ship: { x0: 420, w0: 620, x1: 640, w1: 150 },
-    palm: { x: -150, y: -60, w: 560 },
-    capt: { x: 20, y: 440, w: 600 },
-    chest: { x: 560, y: 830, w: 190 },
+    palm: { x: -140, y: -60, w: 500 },
+    capt: { x: 20, y: 240, w: 360 }, // elevated so interactive controls fit underneath
+    chest: { x: 440, y: 430, w: 160 },
     bushL: { x: -40, y: 1330, w: 520 },
     bushR: { x: 570, y: 1340, w: 260 }
   }
@@ -91,9 +92,9 @@ function yAt(l, x, t, p, L) {
   return base + a * Math.sin(f * x + t * l.v + l.ph) + a * 0.45 * Math.sin(f * 2.3 * x - t * l.v * 0.7 + l.ph * 1.7);
 }
 
-export default function SaltwakeRepytGame() {
+export default function RepytGame() {
   // Navigation & Scene state
-  const [sceneIndex, setSceneIndex] = useState(0); // 0 = Sea (Voyage Hero), 1 = Island (Buried Treasure)
+  const [sceneIndex, setSceneIndex] = useState(0); // 0 = Sea (Hero), 1 = Island (Vault)
   const [soundMuted, setSoundMuted] = useState(false);
   const [isRecording, setIsRecording] = useState(false);
   const [speechFeedback, setSpeechFeedback] = useState('');
@@ -106,6 +107,14 @@ export default function SaltwakeRepytGame() {
     speechPracticed: 0,
   });
 
+  // Daily Concept Clue & Starter Suggestions
+  const [dailyClue, setDailyClue] = useState({
+    category: 'Maritime & Navigation',
+    realm: 'Ocean Voyages',
+    hint: 'A coastal beacon guiding vessels through tempest and dark waters.',
+    suggestions: ['Beacon', 'Tower', 'Ocean']
+  });
+
   // Buried Treasure (Scene 1) Game State
   const [climbGuesses, setClimbGuesses] = useState([]);
   const [climbInput, setClimbInput] = useState('');
@@ -113,7 +122,7 @@ export default function SaltwakeRepytGame() {
   const [climbSolved, setClimbSolved] = useState(false);
   const [incorrectGuesses, setIncorrectGuesses] = useState(0);
   const [captainBanter, setCaptainBanter] = useState(
-    'Ahoy! Name any concept to gauge your bearing to the treasure chest.'
+    'Ahoy! Test any word to gauge your bearing to the Repyt Vault.'
   );
 
   // Keep a mutable ref of incorrectGuesses for the 60fps render loop
@@ -164,12 +173,22 @@ export default function SaltwakeRepytGame() {
   // Speech Recognition ref
   const recognitionRef = useRef(null);
 
-  // 1. Initial Setup: Audio, Stats, Speech Recognition
+  // 1. Initial Setup: Audio, Stats, Speech Recognition & Daily Clue Fetch
   useEffect(() => {
     const prefs = getPreferences();
     setSoundMuted(!prefs.sound);
     sound.setMuted(!prefs.sound);
     setStats(getPlayerStats());
+
+    // Fetch daily clue from API
+    fetch('/api/semantic-climb')
+      .then((res) => res.json())
+      .then((data) => {
+        if (data && data.category) {
+          setDailyClue(data);
+        }
+      })
+      .catch((err) => console.warn('Could not load daily clue:', err));
 
     // Check fine cursor
     if (window.matchMedia('(hover: hover) and (pointer: fine)').matches) {
@@ -258,7 +277,7 @@ export default function SaltwakeRepytGame() {
     }, 700);
   }, [goToScene]);
 
-  // 4. Saltwake 60FPS Render Loop with Dynamic Ship Horizon Lifeline
+  // 4. 60FPS Render Loop with Dynamic Ship Horizon Lifeline & Overlap Prevention
   useEffect(() => {
     let animId;
     const t0 = performance.now();
@@ -517,27 +536,29 @@ export default function SaltwakeRepytGame() {
         bushRRef.current.style.transform = `translateY(${mix(300, 0, b)}px)`;
       }
 
-      // Island texts (h2, p2, btn2)
+      // STRICT OVERLAP PREVENTION: Hide entire Scene 1 container until voyage is started
+      if (t2Ref.current) {
+        const t2k = seg(p, 0.25, 0.85);
+        t2Ref.current.style.opacity = String(t2k);
+        t2Ref.current.style.visibility = p > 0.05 ? 'visible' : 'hidden';
+        t2Ref.current.style.pointerEvents = p > 0.75 ? 'auto' : 'none';
+        t2Ref.current.style.transform = `translateY(${mix(40, 0, out(t2k))}px)`;
+      }
+
       if (h2Ref.current) {
-        const hk = seg(p, 0.42, 0.82);
+        const hk = seg(p, 0.35, 0.8);
         h2Ref.current.style.opacity = `${hk * hk}`;
-        h2Ref.current.style.transform = `translateY(${mix(70, 0, out(hk))}px)`;
       }
 
       if (p2Ref.current) {
-        const pk = seg(p, 0.76, 0.92);
+        const pk = seg(p, 0.65, 0.9);
         p2Ref.current.style.opacity = `${pk}`;
-        p2Ref.current.style.transform = `translateY(${mix(16, 0, pk)}px)`;
       }
 
       if (btn2Ref.current) {
-        const bk = seg(p, 0.86, 1);
+        const bk = seg(p, 0.8, 1);
         btn2Ref.current.style.opacity = `${bk}`;
         btn2Ref.current.style.transform = `scale(${mix(0.7, 1, back(bk))})`;
-      }
-
-      if (t2Ref.current) {
-        t2Ref.current.style.pointerEvents = p > 0.9 ? 'auto' : 'none';
       }
 
       // Palm shade canvas dynamic drift
@@ -614,7 +635,7 @@ export default function SaltwakeRepytGame() {
     });
   };
 
-  // 7. Buried Treasure Semantic Proximity Engine with Ship Horizon Lifeline
+  // 7. Repyt Semantic Proximity Engine with Ship Horizon Lifeline
   const executeClimbGuess = async (guessWord) => {
     const guess = (guessWord || '').trim();
     if (!guess || climbEvaluating || climbSolved || incorrectGuesses >= MAX_LEAGUES) return;
@@ -638,12 +659,16 @@ export default function SaltwakeRepytGame() {
 
       const data = await res.json();
 
+      if (data.details) {
+        setDailyClue(data.details);
+      }
+
       if (data.solved) {
-        // Treasure Unlocked!
+        // Vault Unlocked!
         sound.streak();
         triggerConfetti({ particleCount: 120, spread: 100, origin: { y: 0.5 } });
         setClimbSolved(true);
-        setCaptainBanter(`Chest unlocked! The mystery treasure was indeed "${guess}"!`);
+        setCaptainBanter(`Vault unlocked! The mystery concept was indeed "${guess}"!`);
 
         const updated = recordChainGame(100, 1, climbGuesses.length + 1, 150);
         if (updated) setStats(updated);
@@ -660,10 +685,10 @@ export default function SaltwakeRepytGame() {
 
         if (data.rank <= 300) {
           sound.correct();
-          setCaptainBanter(`Burning hot bearing! You're within striking distance of the chest.`);
+          setCaptainBanter(`Burning hot bearing! You're extremely close to the vault.`);
         } else if (data.rank <= 1500) {
           sound.correct();
-          setCaptainBanter(`Warm shallows. Keep digging around this theme.`);
+          setCaptainBanter(`Warm shallows. Keep exploring along this train of thought.`);
         } else {
           sound.error();
           setCaptainBanter(`Cold waters! Your ship drifts further toward the horizon.`);
@@ -694,6 +719,11 @@ export default function SaltwakeRepytGame() {
     executeClimbGuess(climbInput);
   };
 
+  const handleQuickGuess = (word) => {
+    setClimbInput(word);
+    executeClimbGuess(word);
+  };
+
   // Reset Voyage
   const resetVoyage = () => {
     setIncorrectGuesses(0);
@@ -705,9 +735,16 @@ export default function SaltwakeRepytGame() {
     closeDialog(victoryDialogRef);
   };
 
-  // Dialog helpers
-  const openDialog = (ref) => ref.current?.showModal();
-  const closeDialog = (ref) => ref.current?.close();
+  // Dialog helpers with Modal Cursor Restoration
+  const openDialog = (ref) => {
+    ref.current?.showModal();
+    document.documentElement.classList.add('has-modal');
+  };
+
+  const closeDialog = (ref) => {
+    ref.current?.close();
+    document.documentElement.classList.remove('has-modal');
+  };
 
   const toggleSound = () => {
     const next = !soundMuted;
@@ -722,16 +759,16 @@ export default function SaltwakeRepytGame() {
   return (
     <>
       <main className="frame" id="frame" ref={frameRef}>
-        {/* Logo Anchor */}
-        <div className="logo" id="logo" ref={logoRef} onClick={() => goToScene(0)}>
-          <svg viewBox="0 0 26 30" fill="none" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round">
-            <circle cx="13" cy="4.5" r="2.8" />
-            <path d="M13 7.5V28M7 12h12M2.5 19c.6 5.5 5.5 9 10.5 9s9.9-3.5 10.5-9" />
-            <path d="m1 21 1.5-2.5L5 20.5M25 21l-1.5-2.5-2.5 2" />
+        {/* Repyt Brand Logo */}
+        <div className="logo" id="logo" ref={logoRef} onClick={() => goToScene(0)} title="Repyt — Home">
+          <svg className="logo-icon" viewBox="0 0 32 32" fill="none" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round">
+            <path d="M4 16c0-6.627 5.373-12 12-12 5.5 0 10.1 3.7 11.5 8.8M28 16c0 6.627-5.373 12-12 12-5.5 0-10.1-3.7-11.5-8.8" />
+            <path d="M12 12h7a3.5 3.5 0 0 1 0 7h-7V9" />
+            <circle cx="16" cy="16" r="2" fill="currentColor" />
           </svg>
-          <div>
-            Saltwake
-            <span className="logo-sub">REPYT AI</span>
+          <div className="logo-text-group">
+            <span className="brand-name">Repyt</span>
+            <span className="logo-sub">AI ODYSSEY</span>
           </div>
         </div>
 
@@ -750,22 +787,22 @@ export default function SaltwakeRepytGame() {
           </a>
 
           <a
-            href="#treasure"
+            href="#vault"
             onClick={(e) => { e.preventDefault(); goToScene(1); }}
-            title="Island & Buried Treasure"
+            title="The Repyt Vault"
           >
-            Treasure
+            Vault
             <svg viewBox="0 0 17 21" fill="none" stroke="currentColor" strokeWidth="2.6" strokeLinecap="round">
               <circle cx="8.5" cy="3" r="1.8" />
               <path d="M8.5 5V18M4.5 8h8M1.5 12.5c.4 3.5 3.5 6 7 6s6.5-2.5 7-6" />
             </svg>
           </a>
 
-          <button onClick={() => openDialog(rulesDialogRef)} title="Ship Articles & Rules">
+          <button onClick={() => openDialog(rulesDialogRef)} title="Repyt Articles & Rules">
             Rules
           </button>
 
-          <button onClick={() => openDialog(statsDialogRef)} title="Captain's Log">
+          <button onClick={() => openDialog(statsDialogRef)} title="Navigator's Log">
             Log
           </button>
 
@@ -823,7 +860,7 @@ export default function SaltwakeRepytGame() {
                 Start voyage
               </button>
               <div className="sub">
-                Set sail to discover Captain Saltwake&apos;s buried treasure
+                Set sail to deduce today&apos;s mystery concept in the Repyt Vault
               </div>
             </div>
           </div>
@@ -841,15 +878,29 @@ export default function SaltwakeRepytGame() {
           <div className="spr" id="bushL" ref={bushLRef} />
           <div className="spr" id="bushR" ref={bushRRef} />
 
-          {/* Scene 1: Island Copy & Buried Treasure Interaction */}
+          {/* Scene 1: The Repyt Vault Interaction (Hidden until Voyage Starts) */}
           <div className="t2" id="t2" ref={t2Ref}>
-            <h2 id="h2" ref={h2Ref}>Buried<br />Treasure</h2>
+            <h2 id="h2" ref={h2Ref}>The Repyt<br />Vault</h2>
             <p id="p2" ref={p2Ref}>
-              Guess the mystery concept to unlock Captain Saltwake&apos;s golden chest.<br />
-              Every missed guess carries your galleon further towards the horizon.
+              Deduce today&apos;s secret concept to open the golden vault.<br />
+              Every missed guess pushes your ship further toward the horizon.
             </p>
 
             <div className="island-climb-box">
+              {/* Daily Clue & Realm */}
+              <div className="daily-clue-card">
+                <div className="clue-meta">
+                  <span className="clue-tag">Realm: {dailyClue.category}</span>
+                  <span style={{ fontSize: '10.5px', opacity: 0.65, fontWeight: 700, letterSpacing: '0.1em' }}>DAILY CLUE</span>
+                </div>
+                <div className="clue-text">&ldquo;{dailyClue.hint}&rdquo;</div>
+              </div>
+
+              {/* How to Play Explainer */}
+              <div className="how-to-play-hint">
+                Enter any word. Repyt measures its meaning against the secret target: <strong>HOT</strong> (#2–300) = very close; <strong>COLD</strong> (#1501+) = far away. Reach #1 before your 5 leagues expire!
+              </div>
+
               {/* Ship Horizon Distance Lifeline Gauge */}
               <div className="lifeline-gauge">
                 <div className="gauge-header">
@@ -883,12 +934,12 @@ export default function SaltwakeRepytGame() {
                   onChange={(e) => setClimbInput(e.target.value)}
                   placeholder={
                     climbSolved
-                      ? 'Treasure chest unlocked!'
+                      ? 'Vault unlocked!'
                       : remainingLeagues === 0
                       ? 'Ship stranded in mist'
                       : isRecording
                       ? 'Listening to speech...'
-                      : 'Guess mystery concept...'
+                      : 'Type any word...'
                   }
                   disabled={climbEvaluating || climbSolved || remainingLeagues === 0}
                   autoComplete="off"
@@ -920,13 +971,31 @@ export default function SaltwakeRepytGame() {
                 </button>
               </form>
 
+              {/* Starter Bearing Suggestions */}
+              {climbGuesses.length === 0 && !climbSolved && (
+                <div className="starter-chips-row">
+                  <span className="starter-label">Try a starting word:</span>
+                  {(dailyClue.suggestions || ['Beacon', 'Tower', 'Ocean']).map((sugg) => (
+                    <button
+                      key={sugg}
+                      type="button"
+                      className="starter-chip"
+                      onClick={() => handleQuickGuess(sugg)}
+                      disabled={climbEvaluating || remainingLeagues === 0}
+                    >
+                      {sugg}
+                    </button>
+                  ))}
+                </div>
+              )}
+
               {speechFeedback && (
                 <div className="speech-hint">
                   {speechFeedback}
                 </div>
               )}
 
-              {/* Captain Banter Scroll */}
+              {/* Helmsman Banter Scroll */}
               <div className="captain-scroll">
                 <span>&ldquo;{captainBanter}&rdquo;</span>
               </div>
@@ -989,9 +1058,13 @@ export default function SaltwakeRepytGame() {
       <div id="cur" ref={curRef} />
 
       {/* Rules / Articles Modal */}
-      <dialog ref={rulesDialogRef} onClick={(e) => e.target === rulesDialogRef.current && closeDialog(rulesDialogRef)}>
+      <dialog
+        ref={rulesDialogRef}
+        onClose={() => document.documentElement.classList.remove('has-modal')}
+        onClick={(e) => e.target === rulesDialogRef.current && closeDialog(rulesDialogRef)}
+      >
         <div className="modal-header">
-          <h3 className="modal-title">Ship&apos;s Articles</h3>
+          <h3 className="modal-title">Repyt Articles</h3>
           <button className="icon-pill-btn" onClick={() => closeDialog(rulesDialogRef)} aria-label="Close modal">
             <svg className="icon-svg" viewBox="0 0 24 24">
               <line x1="18" y1="6" x2="6" y2="18" />
@@ -1000,38 +1073,42 @@ export default function SaltwakeRepytGame() {
           </button>
         </div>
         <div className="modal-body">
-          <h4>Buried Treasure (The Mystery Concept)</h4>
+          <h4>How to Play the Repyt Vault</h4>
           <p>
-            Captain Saltwake has buried a secret concept beneath the sands. Guess any word to gauge your semantic bearing to the treasure.
+            A secret daily concept is sealed in the Repyt Vault. Enter or speak any word to test your conceptual proximity.
           </p>
 
-          <h4>The Horizon Lifeline</h4>
+          <h4>The 5-League Horizon Lifeline</h4>
           <p>
-            You have <strong>5 leagues</strong> of lifeline. Every incorrect guess pushes your galleon further out to sea towards the horizon mist. After 5 missed attempts, the ship is lost.
+            You have <strong>5 leagues</strong> before your galleon disappears into the horizon mist. Every incorrect guess pushes your ship further away.
           </p>
 
           <h4>Proximity Ranks</h4>
           <ul>
-            <li><strong>#1 (SOLVED)</strong>: Exact match unlocks the golden chest.</li>
+            <li><strong>#1 (SOLVED)</strong>: Exact match unlocks the vault!</li>
             <li><strong>#2 - #300 (HOT)</strong>: Burning hot bearing. Near the secret concept.</li>
-            <li><strong>#301 - #1,500 (WARM)</strong>: Warm shallows in the same conceptual sea.</li>
-            <li><strong>#1,501+ (COLD)</strong>: Distant icy waters. Try another compass heading.</li>
+            <li><strong>#301 - #1,500 (WARM)</strong>: Warm shallows in the same semantic sea.</li>
+            <li><strong>#1,501+ (COLD)</strong>: Distant icy waters. Try another heading.</li>
           </ul>
 
           <h4>Speech Practice &amp; Hands-Free</h4>
           <p>
-            Tap the microphone button to speak your guess aloud. Tap any Pronounce button to hear clear spoken pronunciation.
+            Tap the microphone to speak your guess hands-free. Tap any Pronounce button to hear clear spoken pronunciation and earn doubloons.
           </p>
         </div>
         <button className="pill" style={{ width: '100%' }} onClick={() => closeDialog(rulesDialogRef)}>
-          Aye, Captain!
+          Understood!
         </button>
       </dialog>
 
-      {/* Captain&apos;s Log / Career Stats Modal */}
-      <dialog ref={statsDialogRef} onClick={(e) => e.target === statsDialogRef.current && closeDialog(statsDialogRef)}>
+      {/* Navigator&apos;s Log Modal */}
+      <dialog
+        ref={statsDialogRef}
+        onClose={() => document.documentElement.classList.remove('has-modal')}
+        onClick={(e) => e.target === statsDialogRef.current && closeDialog(statsDialogRef)}
+      >
         <div className="modal-header">
-          <h3 className="modal-title">Captain&apos;s Log</h3>
+          <h3 className="modal-title">Navigator&apos;s Log</h3>
           <button className="icon-pill-btn" onClick={() => closeDialog(statsDialogRef)} aria-label="Close modal">
             <svg className="icon-svg" viewBox="0 0 24 24">
               <line x1="18" y1="6" x2="6" y2="18" />
@@ -1076,9 +1153,13 @@ export default function SaltwakeRepytGame() {
       </dialog>
 
       {/* Ship Stranded Modal */}
-      <dialog ref={strandedDialogRef} onClick={(e) => e.target === strandedDialogRef.current && closeDialog(strandedDialogRef)}>
+      <dialog
+        ref={strandedDialogRef}
+        onClose={() => document.documentElement.classList.remove('has-modal')}
+        onClick={(e) => e.target === strandedDialogRef.current && closeDialog(strandedDialogRef)}
+      >
         <div className="modal-header">
-          <h3 className="modal-title">Ship Lost in Mist</h3>
+          <h3 className="modal-title">Voyage Lost in Mist</h3>
           <button className="icon-pill-btn" onClick={() => closeDialog(strandedDialogRef)} aria-label="Close modal">
             <svg className="icon-svg" viewBox="0 0 24 24">
               <line x1="18" y1="6" x2="6" y2="18" />
@@ -1088,7 +1169,7 @@ export default function SaltwakeRepytGame() {
         </div>
         <div className="modal-body">
           <p>
-            Your galleon drifted past the horizon after 5 missed leagues. Captain Saltwake&apos;s golden chest remains sealed for this voyage.
+            Your galleon drifted past the horizon after 5 missed leagues. The Repyt Vault remains sealed for this voyage.
           </p>
           <div className="stats-grid" style={{ margin: '18px 0' }}>
             <div className="stat-card">
@@ -1108,10 +1189,14 @@ export default function SaltwakeRepytGame() {
         </button>
       </dialog>
 
-      {/* Victory / Chest Unlocked Modal */}
-      <dialog ref={victoryDialogRef} onClick={(e) => e.target === victoryDialogRef.current && closeDialog(victoryDialogRef)}>
+      {/* Victory / Vault Unlocked Modal */}
+      <dialog
+        ref={victoryDialogRef}
+        onClose={() => document.documentElement.classList.remove('has-modal')}
+        onClick={(e) => e.target === victoryDialogRef.current && closeDialog(victoryDialogRef)}
+      >
         <div className="modal-header">
-          <h3 className="modal-title">Chest Unlocked!</h3>
+          <h3 className="modal-title">Vault Unlocked!</h3>
           <button className="icon-pill-btn" onClick={() => closeDialog(victoryDialogRef)} aria-label="Close modal">
             <svg className="icon-svg" viewBox="0 0 24 24">
               <line x1="18" y1="6" x2="6" y2="18" />
@@ -1121,7 +1206,7 @@ export default function SaltwakeRepytGame() {
         </div>
         <div className="modal-body">
           <p>
-            Splendid navigation! You uncovered Captain Saltwake&apos;s secret coordinates and retrieved the buried treasure!
+            Splendid navigation! You uncovered today&apos;s secret concept and opened the Repyt Vault!
           </p>
           <div className="stats-grid" style={{ margin: '18px 0' }}>
             <div className="stat-card">

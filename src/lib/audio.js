@@ -1,4 +1,4 @@
-// Web Audio API Synthesizer & Speech Synthesis Engine for Repyt × Saltwake
+// Web Audio API Synthesizer & Speech Synthesis Engine for Repyt
 
 class SoundFX {
   constructor() {
