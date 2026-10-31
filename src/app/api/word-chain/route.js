@@ -1,5 +1,4 @@
 import { NextResponse } from 'next/server';
-import { GoogleGenAI } from '@google/genai';
 
 export const maxDuration = 15;
 
@@ -142,44 +141,24 @@ export async function POST(req) {
       });
     }
 
-    // Call Gemini API
-    const ai = new GoogleGenAI({ apiKey });
-
-    const prompt = `You are the lively referee and opponent in "Repyt", a high-speed word tennis / word association game.
-The current active word is: "${cleanCurrent}".
-The player answered: "${cleanPlayer}".
-History of words already used in this rally: [${hist.join(', ')}].
-Theme: ${theme}.
-
-Tasks:
-1. Is "${cleanPlayer}" a legitimate English word AND a creative/sensible semantic, cultural, or thematic association with "${cleanCurrent}"?
-   - Be generous with creative or clever leaps, metaphors, and pop culture idioms.
-   - Reject non-words, keyboard smashes, completely random unlinked words, or exact repetitions.
-2. If valid, score the connection strength from 1 to 100.
-3. Provide a witty 1-sentence reaction / banter (under 15 words).
-4. If valid, supply YOUR counter-word to rally back to the player.
-   - Counter-word MUST be an association with "${cleanPlayer}".
-   - Counter-word MUST NOT be in the history list: [${hist.join(', ')}].
-   - Counter-word MUST be a single clean word (no spaces/hyphens).
-
-Return strictly JSON matching this structure:
-{
-  "valid": true,
-  "score": 85,
-  "reason": "Clear thematic connection",
-  "counterWord": "NextWord",
-  "banter": "Sharp return! Let's see you handle this:"
-}`;
-
-    const response = await ai.models.generateContent({
-      model: 'gemini-3.5-flash-lite',
-      contents: prompt,
-      config: {
-        responseMimeType: 'application/json',
-      },
+    const geminiUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-3.5-flash-lite:generateContent?key=${apiKey}`;
+    const apiRes = await fetch(geminiUrl, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        contents: [{ parts: [{ text: prompt }] }],
+        generationConfig: {
+          responseMimeType: 'application/json',
+        },
+      }),
     });
 
-    const text = response.text || '';
+    if (!apiRes.ok) {
+      throw new Error(`Gemini API error: ${apiRes.status}`);
+    }
+
+    const data = await apiRes.json();
+    const text = data?.candidates?.[0]?.content?.parts?.[0]?.text || '{}';
     const parsed = JSON.parse(text);
 
     return NextResponse.json({

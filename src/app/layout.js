@@ -1,17 +1,14 @@
-import './globals.css'
-import { Inter } from 'next/font/google'
-
-const inter = Inter({ subsets: ['latin'] })
+import './globals.css';
 
 export const metadata = {
-  title: 'Repyt | The AI Word Game',
-  description: 'Rally with AI in fast-paced word association battles and climb the daily semantic proximity rankings.',
-}
+  title: 'Repyt × Saltwake | Tales of the Open Sea Word Game',
+  description: 'A storybook pirate word association rally and daily semantic treasure climb with live voice controls and speech teaching.',
+};
 
 export default function RootLayout({ children }) {
   return (
     <html lang="en">
-      <body className={inter.className}>{children}</body>
+      <body>{children}</body>
     </html>
-  )
+  );
 }

@@ -1,5 +1,4 @@
 import { NextResponse } from 'next/server';
-import { GoogleGenAI } from '@google/genai';
 
 export const maxDuration = 15;
 
@@ -124,35 +123,25 @@ export async function POST(req) {
       });
     }
 
-    const ai = new GoogleGenAI({ apiKey });
-
-    const prompt = `You are the judge for a semantic proximity word game (like Contexto / Semantle).
-Target Secret Word: "${target}"
-Player Guess: "${cleanGuess}"
-
-Determine the semantic similarity and distance between the target and the guess in human conceptual space.
-Rank scale:
-- 1: The exact word (not applicable here)
-- 2 to 300: Extremely close / direct synonym, identical category, or primary attribute (Burning Hot)
-- 301 to 1500: Closely related concept / same domain (Warm)
-- 1501 to 4000: Distantly related / loose association (Cool)
-- 4001 to 10000: Completely unrelated / opposite / abstract mismatch (Freezing)
-
-Return strictly valid JSON:
-{
-  "rank": 240,
-  "hint": "Very close! Think about where this object operates."
-}`;
-
-    const response = await ai.models.generateContent({
-      model: 'gemini-3.5-flash-lite',
-      contents: prompt,
-      config: {
-        responseMimeType: 'application/json',
-      },
+    const geminiUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-3.5-flash-lite:generateContent?key=${apiKey}`;
+    const apiRes = await fetch(geminiUrl, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        contents: [{ parts: [{ text: prompt }] }],
+        generationConfig: {
+          responseMimeType: 'application/json',
+        },
+      }),
     });
 
-    const parsed = JSON.parse(response.text || '{}');
+    if (!apiRes.ok) {
+      throw new Error(`Gemini API error: ${apiRes.status}`);
+    }
+
+    const data = await apiRes.json();
+    const text = data?.candidates?.[0]?.content?.parts?.[0]?.text || '{}';
+    const parsed = JSON.parse(text);
     const rank = Math.max(2, Math.min(Number(parsed.rank) || 4500, 9999));
     const temp = getTemperature(rank);
 
