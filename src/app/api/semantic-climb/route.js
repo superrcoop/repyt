@@ -123,6 +123,24 @@ export async function POST(req) {
       });
     }
 
+    const prompt = `You are Captain Saltwake, the judge for a semantic proximity treasure hunt (like Contexto).
+Target Secret Word: "${target}"
+Player Guess: "${cleanGuess}"
+
+Determine the semantic similarity and distance between the target and the guess in human conceptual space.
+Rank scale:
+- 1: The exact word (not applicable here)
+- 2 to 300: Extremely close / direct synonym, identical category, or primary attribute (Burning Hot)
+- 301 to 1500: Closely related concept / same domain (Warm Shallows)
+- 1501 to 4000: Distantly related / loose association (Cool)
+- 4001 to 10000: Completely unrelated / opposite / abstract mismatch (Freezing Waters)
+
+Return strictly valid JSON:
+{
+  "rank": 240,
+  "hint": "Very close! Think about where this object operates on the voyage."
+}`;
+
     const geminiUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-3.5-flash-lite:generateContent?key=${apiKey}`;
     const apiRes = await fetch(geminiUrl, {
       method: 'POST',
