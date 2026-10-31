@@ -5,11 +5,11 @@ const PREFS_KEY = 'repyt_saltwake_prefs_v2';
 const DAILY_KEY_PREFIX = 'repyt_daily_';
 
 export function getPirateRank(doubloons = 0) {
-  if (doubloons >= 1500) return { title: 'Sea Captain', icon: '⚓', badge: 'Legendary' };
-  if (doubloons >= 700) return { title: 'Quartermaster', icon: '🧭', badge: 'Officer' };
-  if (doubloons >= 300) return { title: 'Gunner', icon: '💣', badge: 'Veteran' };
-  if (doubloons >= 100) return { title: 'Deckhand', icon: '🗡️', badge: 'Sailor' };
-  return { title: 'Cabin Boy', icon: '🪵', badge: 'Novice' };
+  if (doubloons >= 1500) return { title: 'Sea Captain', icon: '', badge: 'Legendary' };
+  if (doubloons >= 700) return { title: 'Quartermaster', icon: '', badge: 'Officer' };
+  if (doubloons >= 300) return { title: 'Gunner', icon: '', badge: 'Veteran' };
+  if (doubloons >= 100) return { title: 'Deckhand', icon: '', badge: 'Sailor' };
+  return { title: 'Cabin Boy', icon: '', badge: 'Novice' };
 }
 
 export function getPlayerStats() {

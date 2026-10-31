@@ -73,10 +73,7 @@ const FRONT_WAVES = [
   { dy: 158, a: 20, k: 1.6, v: 1.1, ph: 3.8 }
 ];
 
-const STARTER_WORDS = [
-  'Galleon', 'Anchor', 'Compass', 'Ocean', 'Horizon',
-  'Tempest', 'Island', 'Treasure', 'Corsair', 'Voyage'
-];
+const MAX_LEAGUES = 5;
 
 // Math helpers
 const clamp = (v, min = 0, max = 1) => Math.max(min, Math.min(max, v));
@@ -95,8 +92,8 @@ function yAt(l, x, t, p, L) {
 }
 
 export default function SaltwakeRepytGame() {
-  // Game & Navigation state
-  const [sceneIndex, setSceneIndex] = useState(0); // 0 = Sea (Voyage), 1 = Island (Treasure)
+  // Navigation & Scene state
+  const [sceneIndex, setSceneIndex] = useState(0); // 0 = Sea (Voyage Hero), 1 = Island (Buried Treasure)
   const [soundMuted, setSoundMuted] = useState(false);
   const [isRecording, setIsRecording] = useState(false);
   const [speechFeedback, setSpeechFeedback] = useState('');
@@ -109,30 +106,27 @@ export default function SaltwakeRepytGame() {
     speechPracticed: 0,
   });
 
-  // Word Tennis (Scene 0) state
-  const [chainState, setChainState] = useState('idle'); // 'idle' | 'playing' | 'evaluating' | 'gameover'
-  const [currentWord, setCurrentWord] = useState('Ocean');
-  const [playerInput, setPlayerInput] = useState('');
-  const [history, setHistory] = useState(['Ocean']);
-  const [rallyFeed, setRallyFeed] = useState([]);
-  const [score, setScore] = useState(0);
-  const [streak, setStreak] = useState(0);
-  const [timeLeft, setTimeLeft] = useState(15);
-  const [captainBanter, setCaptainBanter] = useState('Welcome aboard, sailor! Speak or enter a word linked to the sea.');
-  const [errorMessage, setErrorMessage] = useState('');
-
-  // Daily Treasure Climb (Scene 1) state
+  // Buried Treasure (Scene 1) Game State
   const [climbGuesses, setClimbGuesses] = useState([]);
   const [climbInput, setClimbInput] = useState('');
   const [climbEvaluating, setClimbEvaluating] = useState(false);
   const [climbSolved, setClimbSolved] = useState(false);
+  const [incorrectGuesses, setIncorrectGuesses] = useState(0);
+  const [captainBanter, setCaptainBanter] = useState(
+    'Ahoy! Name any concept to gauge your bearing to the treasure chest.'
+  );
+
+  // Keep a mutable ref of incorrectGuesses for the 60fps render loop
+  const incorrectRef = useRef(0);
+  useEffect(() => {
+    incorrectRef.current = incorrectGuesses;
+  }, [incorrectGuesses]);
 
   // Dialog refs
   const rulesDialogRef = useRef(null);
   const statsDialogRef = useRef(null);
-  const speechDialogRef = useRef(null);
-  const gameOverDialogRef = useRef(null);
-  const inputRef = useRef(null);
+  const strandedDialogRef = useRef(null);
+  const victoryDialogRef = useRef(null);
   const climbInputRef = useRef(null);
 
   // Canvas & Scene DOM refs
@@ -164,7 +158,7 @@ export default function SaltwakeRepytGame() {
     pTo: 0,
     pT0: 0,
     duration: 2100,
-    lockedUntil: 0
+    lockedUntil: 0,
   });
 
   // Speech Recognition ref
@@ -232,7 +226,7 @@ export default function SaltwakeRepytGame() {
       [14, 78, 96, 16, 4],
       [40, 82, 118, 22, 3],
       [78, 80, 140, 34, 5],
-      [-12, 74, 22, 56, 6]
+      [-12, 74, 22, 56, 6],
     ];
 
     curves.forEach(([x0, y0, x1, y1, lw]) => {
@@ -257,7 +251,14 @@ export default function SaltwakeRepytGame() {
     sound.shipBell();
   }, []);
 
-  // 4. Saltwake 60FPS Render Loop
+  const handleStartVoyage = useCallback(() => {
+    goToScene(1);
+    setTimeout(() => {
+      climbInputRef.current?.focus();
+    }, 700);
+  }, [goToScene]);
+
+  // 4. Saltwake 60FPS Render Loop with Dynamic Ship Horizon Lifeline
   useEffect(() => {
     let animId;
     const t0 = performance.now();
@@ -269,6 +270,9 @@ export default function SaltwakeRepytGame() {
     let cy = -100;
     let isPressed = false;
     let isOverLink = false;
+
+    // Smoothed mist level for ship lifeline (0 at shore -> 1 vanished at horizon)
+    let currentMist = 0;
 
     const onPointerMove = (e) => {
       mx = e.clientX;
@@ -287,7 +291,7 @@ export default function SaltwakeRepytGame() {
         ping.style.transform = 'scale(1)';
         ping.animate([
           { transform: 'scale(1)', opacity: 1 },
-          { transform: 'scale(2.9)', opacity: 0 }
+          { transform: 'scale(2.9)', opacity: 0 },
         ], { duration: 650, easing: 'ease-out', fill: 'forwards' });
       }
     };
@@ -417,21 +421,36 @@ export default function SaltwakeRepytGame() {
       renderWaveLayer(wBackRef.current, BACK_WAVES);
       renderWaveLayer(wFrontRef.current, FRONT_WAVES);
 
-      // Ship positioning & rocking
+      // Ship positioning, rocking, and Horizon Lifeline
       if (shipRef.current) {
         const c = L.ship;
-        const sw = mix(c.w0, c.w1, p);
-        const sx = mix(c.x0, c.x1, p);
+        const baseSw = mix(c.w0, c.w1, p);
+        const baseSx = mix(c.x0, c.x1, p);
+
+        // Calculate lifeline mist ratio (0 to 1) when on or transitioning to scene 1
+        const targetMist = p > 0.05 ? clamp(incorrectRef.current / MAX_LEAGUES, 0, 1) : 0;
+        currentMist += (targetMist - currentMist) * 0.07;
+
+        // Scale: Ship shrinks further toward vanishing point per missed league
+        const sw = baseSw * (1 - currentMist * 0.78);
         const sh = sw * 2002 / 1961;
-        const wy = yAt(FRONT_WAVES[0], sx, t, p, L);
+
+        // Position: Ship drifts higher towards the horizon line and further away
+        const sx = baseSx + currentMist * (portrait ? 45 : 85);
+        const wy = yAt(FRONT_WAVES[0], sx, t, p, L) - currentMist * (portrait ? 35 : 45);
+
         const slope = (yAt(FRONT_WAVES[0], sx + 90, t, p, L) - yAt(FRONT_WAVES[0], sx - 90, t, p, L)) / 180;
         const rot = Math.atan(slope) * 57.3 * 0.75;
+
+        // Opacity: Fades into sea mist until gone on 5th mistake
+        const shipOpacity = Math.max(0, 1 - currentMist * 0.98);
 
         shipRef.current.style.width = `${sw}px`;
         shipRef.current.style.height = `${sh}px`;
         shipRef.current.style.left = `${sx - sw / 2}px`;
         shipRef.current.style.top = `${wy + sw * 0.05 - sh}px`;
         shipRef.current.style.transform = `rotate(${rot}deg)`;
+        shipRef.current.style.opacity = String(shipOpacity);
       }
 
       // Cloud drift
@@ -442,7 +461,7 @@ export default function SaltwakeRepytGame() {
         cloudRef.current.style.opacity = `${1 - seg(p, 0.3, 0.7)}`;
       }
 
-      // Intro & Copy transitions
+      // Intro & Copy transitions for Scene 0 (Hero)
       const intro = out(seg(now, t0 + 200, t0 + 1100));
       if (t1Ref.current) {
         t1Ref.current.style.opacity = `${intro * (1 - seg(p, 0.62, 0.7))}`;
@@ -554,27 +573,7 @@ export default function SaltwakeRepytGame() {
     };
   }, [goToScene]);
 
-  // 5. Timer loop for Word Tennis (Scene 0)
-  useEffect(() => {
-    let interval = null;
-    if (chainState === 'playing') {
-      interval = setInterval(() => {
-        setTimeLeft((prev) => {
-          if (prev <= 1) {
-            handleTimeExpired();
-            return 0;
-          }
-          if (prev <= 4) {
-            sound.tick();
-          }
-          return prev - 1;
-        });
-      }, 1000);
-    }
-    return () => clearInterval(interval);
-  }, [chainState, streak, score, currentWord]);
-
-  // 6. Voice Recognition Toggle & Handling
+  // 5. Voice Recognition Toggle & Handling
   const toggleListening = () => {
     if (!recognitionRef.current) {
       alert('Speech recognition is not supported in this browser. Please use Chrome, Edge, or Safari.');
@@ -588,7 +587,7 @@ export default function SaltwakeRepytGame() {
       try {
         recognitionRef.current.start();
         setIsRecording(true);
-        setSpeechFeedback('Listening... speak your word clearly!');
+        setSpeechFeedback('Listening... speak clearly!');
       } catch (e) {
         console.warn('Speech start error:', e);
       }
@@ -596,7 +595,6 @@ export default function SaltwakeRepytGame() {
   };
 
   const handleSpokenWord = (spokenText) => {
-    // Extract first clean word
     const words = spokenText.replace(/[^a-zA-Z\s]/g, '').trim().split(/\s+/);
     const spokenWord = words[0];
     if (!spokenWord) return;
@@ -604,150 +602,29 @@ export default function SaltwakeRepytGame() {
     setSpeechFeedback(`Heard: "${spokenWord}"`);
     setTimeout(() => setSpeechFeedback(''), 3000);
 
-    if (sceneIndex === 0) {
-      // Word Tennis
-      if (chainState === 'playing') {
-        executeWordSubmission(spokenWord);
-      } else {
-        setPlayerInput(spokenWord);
-      }
-    } else {
-      // The Daily Climb
-      setClimbInput(spokenWord);
-      executeClimbGuess(spokenWord);
-    }
+    setClimbInput(spokenWord);
+    executeClimbGuess(spokenWord);
   };
 
-  // 7. Speech Pronunciation Teaching Action
+  // 6. Speech Pronunciation Teaching Action
   const pronounceWord = (word) => {
     sound.speakWord(word, () => {
-      // Award doubloons for speech practice
       const updated = recordSpeechPractice();
       if (updated) setStats(updated);
     });
   };
 
-  // 8. Word Tennis Game Lifecycle
-  const startChainGame = () => {
-    const randomStarter = STARTER_WORDS[Math.floor(Math.random() * STARTER_WORDS.length)];
-    setCurrentWord(randomStarter);
-    setHistory([randomStarter]);
-    setRallyFeed([]);
-    setScore(0);
-    setStreak(0);
-    setTimeLeft(15);
-    setCaptainBanter(`All hands on deck! Give me a creative word associated with "${randomStarter}"!`);
-    setErrorMessage('');
-    setChainState('playing');
-    sound.shipBell();
-
-    setTimeout(() => {
-      inputRef.current?.focus();
-    }, 150);
-  };
-
-  const handleTimeExpired = () => {
-    sound.gameOver();
-    setChainState('gameover');
-    setCaptainBanter('Turn timer expired! The rally has concluded.');
-    const earnedDoubloons = Math.floor(score / 20) + streak * 2;
-    const updated = recordChainGame(score, streak, rallyFeed.length, earnedDoubloons);
-    if (updated) setStats(updated);
-    openDialog(gameOverDialogRef);
-  };
-
-  // Optimistic Zero-Latency Submission Engine
-  const executeWordSubmission = async (guessWord) => {
-    const guess = (guessWord || '').trim();
-    if (!guess) return;
-
-    setPlayerInput('');
-    setErrorMessage('');
-
-    // Check immediate repeats locally (0ms)
-    const normHist = history.map((w) => w.toLowerCase().trim());
-    if (normHist.includes(guess.toLowerCase())) {
-      sound.error();
-      setErrorMessage(`"${guess}" was already spoken on this voyage!`);
-      setCaptainBanter('No repeating words already logged in the ship’s log!');
-      return;
-    }
-
-    // Optimistic fast acceptance chime!
-    const nextStreak = streak + 1;
-    sound.correct(nextStreak);
-    sound.coin();
-
-    setChainState('evaluating');
-
-    try {
-      const res = await fetch('/api/word-chain', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          currentWord,
-          playerWord: guess,
-          history,
-        }),
-      });
-
-      const data = await res.json();
-
-      if (!data.valid) {
-        sound.error();
-        setErrorMessage(data.reason || 'Word association rejected!');
-        setCaptainBanter(data.banter || 'The Captain frowns upon that link!');
-        setChainState('playing');
-        return;
-      }
-
-      // Validated by AI!
-      const turnScore = (data.score || 60) + nextStreak * 15;
-      const newScore = score + turnScore;
-      const counterWord = data.counterWord || 'Horizon';
-
-      if (nextStreak % 5 === 0) {
-        sound.streak();
-        triggerConfetti({ particleCount: 50, spread: 70, origin: { y: 0.6 } });
-      }
-
-      setRallyFeed((prev) => [
-        { playerWord: guess, aiWord: counterWord, score: turnScore, banter: data.banter },
-        ...prev
-      ]);
-
-      setCurrentWord(counterWord);
-      setHistory((prev) => [...prev, guess, counterWord]);
-      setScore(newScore);
-      setStreak(nextStreak);
-      setTimeLeft(Math.max(7, 15 - Math.floor(nextStreak / 3)));
-      setCaptainBanter(data.banter || 'Clean return, sailor!');
-      setChainState('playing');
-
-      // Auto-pronounce AI word to teach speech
-      sound.speakWord(counterWord);
-
-      setTimeout(() => {
-        inputRef.current?.focus();
-      }, 50);
-    } catch (err) {
-      console.error(err);
-      sound.error();
-      setErrorMessage('Communication error with ship helm.');
-      setChainState('playing');
-    }
-  };
-
-  const handleTennisSubmit = (e) => {
-    e.preventDefault();
-    if (chainState !== 'playing') return;
-    executeWordSubmission(playerInput);
-  };
-
-  // 9. Daily Treasure Climb (Scene 1)
+  // 7. Buried Treasure Semantic Proximity Engine with Ship Horizon Lifeline
   const executeClimbGuess = async (guessWord) => {
     const guess = (guessWord || '').trim();
-    if (!guess || climbEvaluating || climbSolved) return;
+    if (!guess || climbEvaluating || climbSolved || incorrectGuesses >= MAX_LEAGUES) return;
+
+    // Check duplicate guesses
+    if (climbGuesses.some((g) => g.guess.toLowerCase() === guess.toLowerCase())) {
+      sound.error();
+      setCaptainBanter(`"${guess}" was already tested in this sand!`);
+      return;
+    }
 
     setClimbInput('');
     setClimbEvaluating(true);
@@ -762,22 +639,51 @@ export default function SaltwakeRepytGame() {
       const data = await res.json();
 
       if (data.solved) {
+        // Treasure Unlocked!
         sound.streak();
-        triggerConfetti({ particleCount: 100, spread: 100, origin: { y: 0.5 } });
+        triggerConfetti({ particleCount: 120, spread: 100, origin: { y: 0.5 } });
         setClimbSolved(true);
-        // Award treasure chest doubloons
-        const updated = recordChainGame(0, 0, 0, 100);
-        if (updated) setStats(updated);
-      } else {
-        sound.correct();
-      }
+        setCaptainBanter(`Chest unlocked! The mystery treasure was indeed "${guess}"!`);
 
-      setClimbGuesses((prev) => {
-        const next = [data, ...prev];
-        return next.sort((a, b) => a.rank - b.rank);
-      });
+        const updated = recordChainGame(100, 1, climbGuesses.length + 1, 150);
+        if (updated) setStats(updated);
+
+        setClimbGuesses((prev) => [data, ...prev].sort((a, b) => a.rank - b.rank));
+
+        setTimeout(() => {
+          openDialog(victoryDialogRef);
+        }, 800);
+      } else {
+        // Incorrect guess: ship drifts 1 league further into the horizon
+        const nextMistakes = incorrectGuesses + 1;
+        setIncorrectGuesses(nextMistakes);
+
+        if (data.rank <= 300) {
+          sound.correct();
+          setCaptainBanter(`Burning hot bearing! You're within striking distance of the chest.`);
+        } else if (data.rank <= 1500) {
+          sound.correct();
+          setCaptainBanter(`Warm shallows. Keep digging around this theme.`);
+        } else {
+          sound.error();
+          setCaptainBanter(`Cold waters! Your ship drifts further toward the horizon.`);
+        }
+
+        setClimbGuesses((prev) => [data, ...prev].sort((a, b) => a.rank - b.rank));
+
+        // Check if ship is stranded
+        if (nextMistakes >= MAX_LEAGUES) {
+          sound.gameOver();
+          setCaptainBanter('The galleon has faded into the mist. Voyage stranded!');
+          setTimeout(() => {
+            openDialog(strandedDialogRef);
+          }, 1200);
+        }
+      }
     } catch (err) {
       console.error(err);
+      sound.error();
+      setCaptainBanter('The compass faltered. Try your guess once more.');
     } finally {
       setClimbEvaluating(false);
     }
@@ -786,6 +692,17 @@ export default function SaltwakeRepytGame() {
   const handleClimbSubmit = (e) => {
     e.preventDefault();
     executeClimbGuess(climbInput);
+  };
+
+  // Reset Voyage
+  const resetVoyage = () => {
+    setIncorrectGuesses(0);
+    setClimbGuesses([]);
+    setClimbSolved(false);
+    setClimbInput('');
+    setCaptainBanter('New voyage charted! Cast your bearing into the sand.');
+    closeDialog(strandedDialogRef);
+    closeDialog(victoryDialogRef);
   };
 
   // Dialog helpers
@@ -800,6 +717,7 @@ export default function SaltwakeRepytGame() {
   };
 
   const pirateRank = getPirateRank(stats.doubloons);
+  const remainingLeagues = Math.max(0, MAX_LEAGUES - incorrectGuesses);
 
   return (
     <>
@@ -820,11 +738,11 @@ export default function SaltwakeRepytGame() {
         {/* Navigation Bar */}
         <nav>
           <a
-            href="#voyages"
+            href="#voyage"
             onClick={(e) => { e.preventDefault(); goToScene(0); }}
-            title="Open Sea Word Tennis"
+            title="Open Sea Voyage Hero"
           >
-            Voyages
+            Voyage
             <svg viewBox="0 0 17 21" fill="none" stroke="currentColor" strokeWidth="2.6" strokeLinecap="round">
               <circle cx="8.5" cy="3" r="1.8" />
               <path d="M8.5 5V18M4.5 8h8M1.5 12.5c.4 3.5 3.5 6 7 6s6.5-2.5 7-6" />
@@ -832,31 +750,46 @@ export default function SaltwakeRepytGame() {
           </a>
 
           <a
-            href="#crew"
+            href="#treasure"
             onClick={(e) => { e.preventDefault(); goToScene(1); }}
-            title="Island & Daily Treasure Climb"
+            title="Island & Buried Treasure"
           >
-            Island
+            Treasure
             <svg viewBox="0 0 17 21" fill="none" stroke="currentColor" strokeWidth="2.6" strokeLinecap="round">
               <circle cx="8.5" cy="3" r="1.8" />
               <path d="M8.5 5V18M4.5 8h8M1.5 12.5c.4 3.5 3.5 6 7 6s6.5-2.5 7-6" />
             </svg>
           </a>
 
-          <button onClick={() => openDialog(rulesDialogRef)} title="Game Rules & Articles">
+          <button onClick={() => openDialog(rulesDialogRef)} title="Ship Articles & Rules">
             Rules
           </button>
 
-          <button onClick={() => openDialog(statsDialogRef)} title="Captain's Log & Career Stats">
+          <button onClick={() => openDialog(statsDialogRef)} title="Captain's Log">
             Log
           </button>
 
-          <button onClick={toggleSound} title={soundMuted ? 'Unmute' : 'Mute'}>
-            {soundMuted ? '🔇' : '🔊'}
+          <button onClick={toggleSound} title={soundMuted ? 'Unmute Sound' : 'Mute Sound'} aria-label="Toggle sound">
+            {soundMuted ? (
+              <svg className="icon-svg" viewBox="0 0 24 24">
+                <polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5" />
+                <line x1="23" y1="9" x2="17" y2="15" />
+                <line x1="17" y1="9" x2="23" y2="15" />
+              </svg>
+            ) : (
+              <svg className="icon-svg" viewBox="0 0 24 24">
+                <polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5" />
+                <path d="M19.07 4.93a10 10 0 0 1 0 14.14M15.54 8.46a5 5 0 0 1 0 7.07" />
+              </svg>
+            )}
           </button>
 
           <div className="nav-badge" title="Your Pirate Gold">
-            <span>🪙 {stats.doubloons}</span>
+            <svg className="icon-svg" style={{ width: '13px', height: '13px' }} viewBox="0 0 24 24">
+              <circle cx="12" cy="12" r="10" />
+              <circle cx="12" cy="12" r="4" />
+            </svg>
+            <span>{stats.doubloons} Gold</span>
             <span style={{ opacity: 0.6 }}>· {pirateRank.title}</span>
           </div>
         </nav>
@@ -876,126 +809,26 @@ export default function SaltwakeRepytGame() {
           {/* Back Wave SVG Layers */}
           <svg className="w" id="wBack" ref={wBackRef} />
 
-          {/* Scene 0: The Open Sea Copy & Word Tennis Dock */}
+          {/* Scene 0: Landing Hero with ONLY "Start voyage" button */}
           <div className="t1" id="t1" ref={t1Ref}>
             <div className="eb">Repyt Archipelago</div>
             <h1>Tales of<br />the open sea</h1>
-
-            {chainState === 'idle' ? (
-              <div style={{ marginTop: '24px' }}>
-                <button
-                  className="pill"
-                  onClick={startChainGame}
-                  data-go="0"
-                  title="Begin high-speed word association rally"
-                >
-                  Set sail
-                </button>
-                <div style={{ marginTop: '14px', font: '700 13px/1 "Open Sans"', opacity: 0.7, letterSpacing: '0.12em' }}>
-                  RALLY WORDS WITH THE WIND · 15S ROUNDS · BUILD STREAKS
-                </div>
+            <div style={{ marginTop: '28px' }}>
+              <button
+                className="pill"
+                onClick={handleStartVoyage}
+                data-go="0"
+                title="Embark on the voyage for buried treasure"
+              >
+                Start voyage
+              </button>
+              <div className="sub">
+                Set sail to discover Captain Saltwake&apos;s buried treasure
               </div>
-            ) : (
-              <div className="game-dock">
-                {/* Active word volley banner */}
-                <div className="active-volley-box">
-                  <div className="volley-word-display">
-                    <span className="volley-label">Rallying Target</span>
-                    <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
-                      <span className="volley-word">{currentWord}</span>
-                      <button
-                        className="chip-speaker"
-                        onClick={() => pronounceWord(currentWord)}
-                        title="Hear word pronunciation aloud"
-                      >
-                        🔊 Pronounce
-                      </button>
-                    </div>
-                  </div>
-
-                  <div className={`volley-timer-pill ${timeLeft <= 4 ? 'urgent' : ''}`}>
-                    <span>⏳ {timeLeft}s</span>
-                    <span style={{ fontSize: '13px', opacity: 0.8 }}>| 🔥 {streak}</span>
-                  </div>
-                </div>
-
-                {/* Input row with Speech Microphone button */}
-                <form onSubmit={handleTennisSubmit} className="input-row">
-                  <input
-                    ref={inputRef}
-                    className="ink-input"
-                    type="text"
-                    value={playerInput}
-                    onChange={(e) => setPlayerInput(e.target.value)}
-                    placeholder={isRecording ? 'Listening to voice...' : 'Type or speak a linked word...'}
-                    disabled={chainState === 'evaluating'}
-                    autoComplete="off"
-                    autoFocus
-                  />
-
-                  {/* Hands-Free Voice Button */}
-                  <button
-                    type="button"
-                    className={`icon-pill-btn ${isRecording ? 'recording' : ''}`}
-                    onClick={toggleListening}
-                    title={isRecording ? 'Listening... click to stop' : 'Speak your answer hands-free'}
-                  >
-                    {isRecording ? '🔴' : '🎙️'}
-                  </button>
-
-                  <button
-                    type="submit"
-                    className="pill"
-                    style={{ padding: '14px 28px 11px', fontSize: '16px' }}
-                    disabled={chainState === 'evaluating'}
-                  >
-                    Volley
-                  </button>
-                </form>
-
-                {speechFeedback && (
-                  <div style={{ font: '600 13px/1 "Josefin Sans"', color: 'var(--gold)' }}>
-                    🎙️ {speechFeedback}
-                  </div>
-                )}
-
-                {errorMessage && (
-                  <div style={{ font: '600 13px/1 "Josefin Sans"', color: 'var(--rose)' }}>
-                    ⚠️ {errorMessage}
-                  </div>
-                )}
-
-                {/* Captain's Banter */}
-                <div className="captain-scroll">
-                  <span className="captain-avatar">🦜</span>
-                  <span>"{captainBanter}"</span>
-                </div>
-
-                {/* Recent Rally Chips */}
-                {rallyFeed.length > 0 && (
-                  <div className="rally-chips">
-                    {rallyFeed.slice(0, 8).map((rf, i) => (
-                      <span key={i} className="chip">
-                        <span>{rf.playerWord}</span>
-                        <span style={{ opacity: 0.5 }}>⇄</span>
-                        <span>{rf.aiWord}</span>
-                        <span
-                          className="chip-speaker"
-                          onClick={() => pronounceWord(rf.aiWord)}
-                          title="Listen to pronunciation"
-                        >
-                          🔊
-                        </span>
-                        <span style={{ color: 'var(--gold)' }}>+{rf.score}</span>
-                      </span>
-                    ))}
-                  </div>
-                )}
-              </div>
-            )}
+            </div>
           </div>
 
-          {/* Galleon Ship Sprite */}
+          {/* Galleon Ship Sprite (Drifts to horizon per missed league) */}
           <div className="spr" id="ship" ref={shipRef} />
 
           {/* Front Wave SVG Layers */}
@@ -1008,15 +841,39 @@ export default function SaltwakeRepytGame() {
           <div className="spr" id="bushL" ref={bushLRef} />
           <div className="spr" id="bushR" ref={bushRRef} />
 
-          {/* Scene 1: Island Copy & Daily Treasure Climb */}
+          {/* Scene 1: Island Copy & Buried Treasure Interaction */}
           <div className="t2" id="t2" ref={t2Ref}>
             <h2 id="h2" ref={h2Ref}>Buried<br />Treasure</h2>
             <p id="p2" ref={p2Ref}>
-              Guess today's mystery coordinates.<br />
-              Climb semantic ranks to unlock Captain Saltwake's golden chest.
+              Guess the mystery concept to unlock Captain Saltwake&apos;s golden chest.<br />
+              Every missed guess carries your galleon further towards the horizon.
             </p>
 
             <div className="island-climb-box">
+              {/* Ship Horizon Distance Lifeline Gauge */}
+              <div className="lifeline-gauge">
+                <div className="gauge-header">
+                  <span className="gauge-title">Ship Distance to Horizon</span>
+                  <span className={`gauge-status ${remainingLeagues <= 1 ? 'danger' : ''}`}>
+                    {remainingLeagues === 0 ? 'Ship Lost in Mist' : `${remainingLeagues} Leagues Remaining`}
+                  </span>
+                </div>
+                <div className="gauge-track">
+                  {[0, 1, 2, 3, 4].map((index) => {
+                    const isLost = index < incorrectGuesses;
+                    const isCritical = remainingLeagues <= 2;
+                    return (
+                      <div
+                        key={index}
+                        className={`gauge-knot ${isLost ? 'lost' : isCritical ? 'warning' : 'safe'}`}
+                        title={`League ${index + 1}`}
+                      />
+                    );
+                  })}
+                </div>
+              </div>
+
+              {/* Input Form with Hands-Free Speech Microphone */}
               <form onSubmit={handleClimbSubmit} className="input-row">
                 <input
                   ref={climbInputRef}
@@ -1024,56 +881,86 @@ export default function SaltwakeRepytGame() {
                   type="text"
                   value={climbInput}
                   onChange={(e) => setClimbInput(e.target.value)}
-                  placeholder="Guess mystery concept..."
-                  disabled={climbEvaluating || climbSolved}
+                  placeholder={
+                    climbSolved
+                      ? 'Treasure chest unlocked!'
+                      : remainingLeagues === 0
+                      ? 'Ship stranded in mist'
+                      : isRecording
+                      ? 'Listening to speech...'
+                      : 'Guess mystery concept...'
+                  }
+                  disabled={climbEvaluating || climbSolved || remainingLeagues === 0}
+                  autoComplete="off"
                 />
 
                 <button
                   type="button"
                   className={`icon-pill-btn ${isRecording ? 'recording' : ''}`}
                   onClick={toggleListening}
-                  title="Speak guess hands-free"
+                  title={isRecording ? 'Listening... click to stop' : 'Speak your guess hands-free'}
+                  aria-label="Microphone"
+                  disabled={climbSolved || remainingLeagues === 0}
                 >
-                  {isRecording ? '🔴' : '🎙️'}
+                  <svg className="icon-svg" viewBox="0 0 24 24">
+                    <path d="M12 1a3 3 0 0 0-3 3v8a3 3 0 0 0 6 0V4a3 3 0 0 0-3-3z" />
+                    <path d="M19 10v2a7 7 0 0 1-14 0v-2" />
+                    <line x1="12" y1="19" x2="12" y2="23" />
+                    <line x1="8" y1="23" x2="16" y2="23" />
+                  </svg>
                 </button>
 
                 <button
                   type="submit"
                   className="pill"
                   style={{ padding: '14px 24px 11px', fontSize: '15px' }}
-                  disabled={climbEvaluating || climbSolved}
+                  disabled={climbEvaluating || climbSolved || remainingLeagues === 0}
                 >
                   Dig
                 </button>
               </form>
 
-              {/* Guesses Log */}
+              {speechFeedback && (
+                <div className="speech-hint">
+                  {speechFeedback}
+                </div>
+              )}
+
+              {/* Captain Banter Scroll */}
+              <div className="captain-scroll">
+                <span>&ldquo;{captainBanter}&rdquo;</span>
+              </div>
+
+              {/* Guess Proximity Log */}
               {climbGuesses.length > 0 && (
                 <div className="guess-log">
-                  {climbGuesses.map((g, i) => (
-                    <div
-                      key={i}
-                      className={`guess-row ${
-                        g.solved ? 'solved' : g.rank <= 300 ? 'hot' : g.rank <= 1500 ? 'warm' : 'cold'
-                      }`}
-                    >
-                      <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                        <span>{g.icon}</span>
-                        <span>{g.guess}</span>
-                        <span
-                          className="chip-speaker"
-                          onClick={() => pronounceWord(g.guess)}
-                          title="Listen to pronunciation"
-                        >
-                          🔊
-                        </span>
+                  {climbGuesses.map((g, i) => {
+                    const statusClass = g.solved ? 'solved' : g.rank <= 300 ? 'hot' : g.rank <= 1500 ? 'warm' : 'cold';
+                    const statusLabel = g.solved ? 'SOLVED' : g.rank <= 300 ? 'HOT' : g.rank <= 1500 ? 'WARM' : 'COLD';
+                    return (
+                      <div key={i} className={`guess-row ${statusClass}`}>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                          <span className="rank-badge">{statusLabel}</span>
+                          <span style={{ fontWeight: 600 }}>{g.guess}</span>
+                          <button
+                            type="button"
+                            className="pronounce-btn"
+                            onClick={() => pronounceWord(g.guess)}
+                            title="Hear pronunciation aloud"
+                          >
+                            <svg className="icon-svg" style={{ width: '12px', height: '12px' }} viewBox="0 0 24 24">
+                              <polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5" />
+                              <path d="M19.07 4.93a10 10 0 0 1 0 14.14M15.54 8.46a5 5 0 0 1 0 7.07" />
+                            </svg>
+                            Pronounce
+                          </button>
+                        </div>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                          <span style={{ fontVariantNumeric: 'tabular-nums' }}>#{g.rank}</span>
+                        </div>
                       </div>
-                      <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                        <span>#{g.rank}</span>
-                        <span style={{ fontSize: '12px', opacity: 0.7 }}>{g.temperature}</span>
-                      </div>
-                    </div>
-                  ))}
+                    );
+                  })}
                 </div>
               )}
             </div>
@@ -1104,47 +991,60 @@ export default function SaltwakeRepytGame() {
       {/* Rules / Articles Modal */}
       <dialog ref={rulesDialogRef} onClick={(e) => e.target === rulesDialogRef.current && closeDialog(rulesDialogRef)}>
         <div className="modal-header">
-          <h3 className="modal-title">Ship’s Articles</h3>
-          <button className="icon-pill-btn" onClick={() => closeDialog(rulesDialogRef)}>✕</button>
+          <h3 className="modal-title">Ship&apos;s Articles</h3>
+          <button className="icon-pill-btn" onClick={() => closeDialog(rulesDialogRef)} aria-label="Close modal">
+            <svg className="icon-svg" viewBox="0 0 24 24">
+              <line x1="18" y1="6" x2="6" y2="18" />
+              <line x1="6" y1="6" x2="18" y2="18" />
+            </svg>
+          </button>
         </div>
         <div className="modal-body">
-          <h4>⚡ Word Tennis (Voyages)</h4>
-          <p>The helm serves an associative word. Reply with a creative semantic link before your countdown expires.</p>
+          <h4>Buried Treasure (The Mystery Concept)</h4>
+          <p>
+            Captain Saltwake has buried a secret concept beneath the sands. Guess any word to gauge your semantic bearing to the treasure.
+          </p>
+
+          <h4>The Horizon Lifeline</h4>
+          <p>
+            You have <strong>5 leagues</strong> of lifeline. Every incorrect guess pushes your galleon further out to sea towards the horizon mist. After 5 missed attempts, the ship is lost.
+          </p>
+
+          <h4>Proximity Ranks</h4>
           <ul>
-            <li><strong>No Repeats</strong>: Words logged in the ship's rally cannot be reused.</li>
-            <li><strong>Combos & Doubloons</strong>: Higher streaks speed up waves and award golden doubloons.</li>
+            <li><strong>#1 (SOLVED)</strong>: Exact match unlocks the golden chest.</li>
+            <li><strong>#2 - #300 (HOT)</strong>: Burning hot bearing. Near the secret concept.</li>
+            <li><strong>#301 - #1,500 (WARM)</strong>: Warm shallows in the same conceptual sea.</li>
+            <li><strong>#1,501+ (COLD)</strong>: Distant icy waters. Try another compass heading.</li>
           </ul>
 
-          <h4>🎙️ Speech Teaching & Hands-Free</h4>
-          <p>Tap the microphone to speak your answer aloud. Tap any speaker icon to hear clear pedagogical pronunciation.</p>
-
-          <h4>🧗 Buried Treasure (Island)</h4>
-          <p>Every day, Captain Saltwake buries a secret concept. Proximity ranks guide your path:</p>
-          <ul>
-            <li>🟩 <strong>#1</strong>: Solved & Chest Unlocked!</li>
-            <li>🔥 <strong>#2 - 300</strong>: Burning Hot</li>
-            <li>🟡 <strong>#301 - 1,500</strong>: Warm Shallows</li>
-            <li>🧊 <strong>#1,501+</strong>: Freezing Waters</li>
-          </ul>
+          <h4>Speech Practice &amp; Hands-Free</h4>
+          <p>
+            Tap the microphone button to speak your guess aloud. Tap any Pronounce button to hear clear spoken pronunciation.
+          </p>
         </div>
         <button className="pill" style={{ width: '100%' }} onClick={() => closeDialog(rulesDialogRef)}>
           Aye, Captain!
         </button>
       </dialog>
 
-      {/* Captain’s Log / Career Stats Modal */}
+      {/* Captain&apos;s Log / Career Stats Modal */}
       <dialog ref={statsDialogRef} onClick={(e) => e.target === statsDialogRef.current && closeDialog(statsDialogRef)}>
         <div className="modal-header">
-          <h3 className="modal-title">Captain’s Log</h3>
-          <button className="icon-pill-btn" onClick={() => closeDialog(statsDialogRef)}>✕</button>
+          <h3 className="modal-title">Captain&apos;s Log</h3>
+          <button className="icon-pill-btn" onClick={() => closeDialog(statsDialogRef)} aria-label="Close modal">
+            <svg className="icon-svg" viewBox="0 0 24 24">
+              <line x1="18" y1="6" x2="6" y2="18" />
+              <line x1="6" y1="6" x2="18" y2="18" />
+            </svg>
+          </button>
         </div>
         <div className="modal-body">
           <div style={{ textAlign: 'center', marginBottom: '16px' }}>
-            <span style={{ fontSize: '36px' }}>{pirateRank.icon}</span>
-            <div style={{ font: '400 28px/1 "Goudy Bookletter 1911"', marginTop: '6px' }}>
+            <div style={{ font: '400 32px/1 "Goudy Bookletter 1911"', marginTop: '6px' }}>
               {pirateRank.title}
             </div>
-            <div style={{ font: '700 12px/1 "Open Sans"', opacity: 0.6, letterSpacing: '0.14em' }}>
+            <div style={{ font: '700 12px/1 "Open Sans"', opacity: 0.6, letterSpacing: '0.14em', textTransform: 'uppercase' }}>
               {pirateRank.badge} NAVIGATOR
             </div>
           </div>
@@ -1152,19 +1052,21 @@ export default function SaltwakeRepytGame() {
           <div className="stats-grid">
             <div className="stat-card">
               <div className="stat-lbl">Doubloons</div>
-              <div className="stat-val" style={{ color: 'var(--gold)' }}>🪙 {stats.doubloons}</div>
+              <div className="stat-val" style={{ color: 'var(--gold)' }}>{stats.doubloons}</div>
             </div>
             <div className="stat-card">
-              <div className="stat-lbl">Best Streak</div>
-              <div className="stat-val">🔥 {stats.bestStreak}</div>
-            </div>
-            <div className="stat-card">
-              <div className="stat-lbl">Words Rallied</div>
-              <div className="stat-val">{stats.totalWordsRallied}</div>
+              <div className="stat-lbl">Voyages Completed</div>
+              <div className="stat-val">{stats.gamesPlayed}</div>
             </div>
             <div className="stat-card">
               <div className="stat-lbl">Speech Practiced</div>
-              <div className="stat-val">🎙️ {stats.speechPracticed}</div>
+              <div className="stat-val">{stats.speechPracticed}</div>
+            </div>
+            <div className="stat-card">
+              <div className="stat-lbl">Best Bearing</div>
+              <div className="stat-val">
+                {climbGuesses.length > 0 ? `#${Math.min(...climbGuesses.map((g) => g.rank))}` : 'None'}
+              </div>
             </div>
           </div>
         </div>
@@ -1173,27 +1075,67 @@ export default function SaltwakeRepytGame() {
         </button>
       </dialog>
 
-      {/* Game Over Dialog */}
-      <dialog ref={gameOverDialogRef} onClick={(e) => e.target === gameOverDialogRef.current && closeDialog(gameOverDialogRef)}>
+      {/* Ship Stranded Modal */}
+      <dialog ref={strandedDialogRef} onClick={(e) => e.target === strandedDialogRef.current && closeDialog(strandedDialogRef)}>
         <div className="modal-header">
-          <h3 className="modal-title">Voyage Concluded</h3>
-          <button className="icon-pill-btn" onClick={() => closeDialog(gameOverDialogRef)}>✕</button>
+          <h3 className="modal-title">Ship Lost in Mist</h3>
+          <button className="icon-pill-btn" onClick={() => closeDialog(strandedDialogRef)} aria-label="Close modal">
+            <svg className="icon-svg" viewBox="0 0 24 24">
+              <line x1="18" y1="6" x2="6" y2="18" />
+              <line x1="6" y1="6" x2="18" y2="18" />
+            </svg>
+          </button>
         </div>
         <div className="modal-body">
-          <p>The tide has turned. Here is your haul from this voyage:</p>
-          <div className="stats-grid">
+          <p>
+            Your galleon drifted past the horizon after 5 missed leagues. Captain Saltwake&apos;s golden chest remains sealed for this voyage.
+          </p>
+          <div className="stats-grid" style={{ margin: '18px 0' }}>
             <div className="stat-card">
-              <div className="stat-lbl">Voyage Score</div>
-              <div className="stat-val">{score}</div>
+              <div className="stat-lbl">Attempts Made</div>
+              <div className="stat-val">5 / 5</div>
             </div>
             <div className="stat-card">
-              <div className="stat-lbl">Rally Streak</div>
-              <div className="stat-val">🔥 {streak}</div>
+              <div className="stat-lbl">Closest Bearing</div>
+              <div className="stat-val">
+                {climbGuesses.length > 0 ? `#${Math.min(...climbGuesses.map((g) => g.rank))}` : 'None'}
+              </div>
             </div>
           </div>
         </div>
-        <button className="pill" style={{ width: '100%' }} onClick={() => { closeDialog(gameOverDialogRef); startChainGame(); }}>
-          Sail Again
+        <button className="pill" style={{ width: '100%' }} onClick={resetVoyage}>
+          Chart New Course
+        </button>
+      </dialog>
+
+      {/* Victory / Chest Unlocked Modal */}
+      <dialog ref={victoryDialogRef} onClick={(e) => e.target === victoryDialogRef.current && closeDialog(victoryDialogRef)}>
+        <div className="modal-header">
+          <h3 className="modal-title">Chest Unlocked!</h3>
+          <button className="icon-pill-btn" onClick={() => closeDialog(victoryDialogRef)} aria-label="Close modal">
+            <svg className="icon-svg" viewBox="0 0 24 24">
+              <line x1="18" y1="6" x2="6" y2="18" />
+              <line x1="6" y1="6" x2="18" y2="18" />
+            </svg>
+          </button>
+        </div>
+        <div className="modal-body">
+          <p>
+            Splendid navigation! You uncovered Captain Saltwake&apos;s secret coordinates and retrieved the buried treasure!
+          </p>
+          <div className="stats-grid" style={{ margin: '18px 0' }}>
+            <div className="stat-card">
+              <div className="stat-lbl">Leagues Spared</div>
+              <div className="stat-val" style={{ color: 'var(--emerald)' }}>{remainingLeagues}</div>
+            </div>
+            <div className="stat-card">
+              <div className="stat-lbl">Bounty Awarded</div>
+              <div className="stat-val" style={{ color: 'var(--gold)' }}>+150 Gold</div>
+            </div>
+          </div>
+        </div>
+        <button className="pill" style={{ width: '100%' }} onClick={resetVoyage}>
+          Embark on Next Voyage
         </button>
       </dialog>
     </>

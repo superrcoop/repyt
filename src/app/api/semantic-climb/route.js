@@ -23,11 +23,11 @@ function getDailyTarget(dateStr) {
 }
 
 function getTemperature(rank) {
-  if (rank === 1) return { label: 'Solved!', color: 'emerald', icon: '🟩' };
-  if (rank <= 300) return { label: 'Burning Hot!', color: 'rose', icon: '🔥' };
-  if (rank <= 1500) return { label: 'Warm', color: 'amber', icon: '🟡' };
-  if (rank <= 4000) return { label: 'Cool', color: 'sky', icon: '❄️' };
-  return { label: 'Freezing', color: 'slate', icon: '🧊' };
+  if (rank === 1) return { label: 'Solved', color: 'emerald', icon: '' };
+  if (rank <= 300) return { label: 'Burning Hot', color: 'rose', icon: '' };
+  if (rank <= 1500) return { label: 'Warm', color: 'amber', icon: '' };
+  if (rank <= 4000) return { label: 'Cool', color: 'sky', icon: '' };
+  return { label: 'Freezing', color: 'slate', icon: '' };
 }
 
 function isValidGeminiKey(key) {
