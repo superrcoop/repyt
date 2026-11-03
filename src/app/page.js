@@ -40,21 +40,21 @@ const LAY = {
   land: {
     w: 1600, h: 900,
     wave: { y0: 748, y1: 272, gap0: 1, gap1: 0.6 },
-    ship: { x0: 1130, w0: 710, x1: 1345, w1: 176 },
+    ship: { x0: 1130, w0: 710, x1: 780, w1: 170 }, // Positioned in open sea channel between island and vault game container!
     palm: { x: -92, y: -112, w: 620 },
-    capt: { x: 120, y: 318, w: 540 },
-    chest: { x: 640, y: 628, w: 200 },
-    bushL: { x: 96, y: 716, w: 700 },
+    capt: { x: 80, y: 318, w: 480 },
+    chest: { x: 560, y: 620, w: 180 },
+    bushL: { x: 60, y: 700, w: 720 },
     bushR: { x: 1370, y: 740, w: 300 }
   },
   port: {
     w: 800, h: 1500,
-    wave: { y0: 1300, y1: 430, gap0: 1, gap1: 0.7 },
-    ship: { x0: 420, w0: 620, x1: 640, w1: 150 },
-    palm: { x: -140, y: -60, w: 500 },
-    capt: { x: 20, y: 140, w: 300 }, // elevated so character artwork never overlaps bottom game panel
-    chest: { x: 440, y: 280, w: 140 },
-    bushL: { x: -40, y: 1330, w: 520 },
+    wave: { y0: 1300, y1: 330, gap0: 1, gap1: 0.6 },
+    ship: { x0: 420, w0: 620, x1: 620, w1: 140 }, // visible in open sea horizon on the right
+    palm: { x: -130, y: -70, w: 460 },
+    capt: { x: 30, y: 187, w: 340 }, // grounded at y = 480px
+    chest: { x: 390, y: 348, w: 150 }, // grounded at y = 480px
+    bushL: { x: -40, y: 430, w: 560 }, // foliage base grounds both Captain and Chest!
     bushR: { x: 570, y: 1340, w: 260 }
   }
 };
@@ -171,10 +171,10 @@ export default function RepytGame() {
   // Speech Recognition ref
   const recognitionRef = useRef(null);
 
-  // Auto-scroll game feed when new answers arrive so question moves upward
+  // Scroll answers feed to show closest bearing when guesses update
   useEffect(() => {
     if (feedRef.current) {
-      feedRef.current.scrollTop = feedRef.current.scrollHeight;
+      feedRef.current.scrollTop = 0;
     }
   }, [climbGuesses]);
 
@@ -846,161 +846,164 @@ export default function RepytGame() {
               </button>
             </div>
 
-            <div className="island-climb-box">
-              {/* SCROLLABLE GAME FEED: Question at top, new Answer cards added below, pushing Question UP */}
-              <div className="game-feed" ref={feedRef}>
-                {/* Question / Daily Clue Container */}
-                <div className="daily-clue-card">
-                  <div className="clue-meta">
-                    <span className="clue-tag">Realm: {dailyClue.category}</span>
-                    <span className="clue-badge">DAILY CLUE</span>
-                  </div>
-                  <div className="clue-text">&ldquo;{dailyClue.hint}&rdquo;</div>
-                  <div className="how-to-play-hint">
-                    Repyt measures semantic proximity: <strong>HOT</strong> (#2–300) = very close; <strong>COLD</strong> (#1501+) = far away. Reach #1 before your 5 leagues expire!
-                  </div>
+            {/* 1. Primary Question & Controls Card */}
+            <div className="question-card">
+              {/* Daily Clue & Riddle */}
+              <div className="daily-clue-header">
+                <span className="clue-tag">Realm: {dailyClue.category}</span>
+                <span className="clue-badge">DAILY CLUE</span>
+              </div>
+              <div className="clue-text">&ldquo;{dailyClue.hint}&rdquo;</div>
+              <div className="how-to-play-hint">
+                Repyt measures semantic proximity: <strong>HOT</strong> (#2–300) = very close; <strong>COLD</strong> (#1501+) = far away. Reach #1 before your 5 leagues expire!
+              </div>
+
+              {/* Ship Horizon Distance Lifeline Gauge */}
+              <div className="lifeline-gauge">
+                <div className="gauge-header">
+                  <span className="gauge-title">Ship Distance to Horizon</span>
+                  <span className={`gauge-status ${remainingLeagues <= 1 ? 'danger' : ''}`}>
+                    {remainingLeagues === 0 ? 'Ship Lost in Mist' : `${remainingLeagues} Leagues Remaining`}
+                  </span>
                 </div>
-
-                {/* Answer Containers: display each guess in its own card, pushing the question up */}
-                {climbGuesses.map((g, i) => {
-                  const statusClass = g.solved ? 'solved' : g.rank <= 300 ? 'hot' : g.rank <= 1500 ? 'warm' : 'cold';
-                  const statusLabel = g.solved ? 'SOLVED' : g.rank <= 300 ? 'HOT' : g.rank <= 1500 ? 'WARM' : 'COLD';
-                  return (
-                    <div key={i} className={`answer-card ${statusClass}`}>
-                      <div className="answer-card-header">
-                        <span className={`rank-badge ${statusClass}`}>{statusLabel}</span>
-                        <span className="answer-word">{g.guess}</span>
-                        <span className="answer-rank">#{g.rank}</span>
-                      </div>
-                      <div className="answer-card-footer">
-                        <span>
-                          {g.solved
-                            ? 'Vault Unlocked!'
-                            : g.rank <= 300
-                            ? 'Burning hot bearing!'
-                            : g.rank <= 1500
-                            ? 'Warm shallows nearby.'
-                            : 'Cold waters. Ship drifts further.'}
-                        </span>
-                        <button
-                          type="button"
-                          className="pronounce-btn"
-                          onClick={() => pronounceWord(g.guess)}
-                          title="Hear pronunciation aloud"
-                        >
-                          <svg className="icon-svg" style={{ width: '12px', height: '12px' }} viewBox="0 0 24 24">
-                            <polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5" />
-                            <path d="M19.07 4.93a10 10 0 0 1 0 14.14M15.54 8.46a5 5 0 0 1 0 7.07" />
-                          </svg>
-                          Pronounce
-                        </button>
-                      </div>
-                    </div>
-                  );
-                })}
-
-                {/* Helmsman Banter Scroll inside feed */}
-                <div className="captain-scroll">
-                  <span>&ldquo;{captainBanter}&rdquo;</span>
+                <div className="gauge-track">
+                  {[0, 1, 2, 3, 4].map((index) => {
+                    const isLost = index < incorrectGuesses;
+                    const isCritical = remainingLeagues <= 2;
+                    return (
+                      <div
+                        key={index}
+                        className={`gauge-knot ${isLost ? 'lost' : isCritical ? 'warning' : 'safe'}`}
+                        title={`League ${index + 1}`}
+                      />
+                    );
+                  })}
                 </div>
               </div>
 
-              {/* STICKY GAME CONTROLS: Lifeline Gauge + Input Form + Suggestions */}
-              <div className="sticky-game-controls">
-                {/* Ship Horizon Distance Lifeline Gauge */}
-                <div className="lifeline-gauge">
-                  <div className="gauge-header">
-                    <span className="gauge-title">Ship Distance to Horizon</span>
-                    <span className={`gauge-status ${remainingLeagues <= 1 ? 'danger' : ''}`}>
-                      {remainingLeagues === 0 ? 'Ship Lost in Mist' : `${remainingLeagues} Leagues Remaining`}
-                    </span>
-                  </div>
-                  <div className="gauge-track">
-                    {[0, 1, 2, 3, 4].map((index) => {
-                      const isLost = index < incorrectGuesses;
-                      const isCritical = remainingLeagues <= 2;
-                      return (
-                        <div
-                          key={index}
-                          className={`gauge-knot ${isLost ? 'lost' : isCritical ? 'warning' : 'safe'}`}
-                          title={`League ${index + 1}`}
-                        />
-                      );
-                    })}
-                  </div>
+              {/* Input Form with Hands-Free Speech Microphone & Dig Button */}
+              <form onSubmit={handleClimbSubmit} className="input-row">
+                <input
+                  ref={climbInputRef}
+                  className="ink-input"
+                  type="text"
+                  value={climbInput}
+                  onChange={(e) => setClimbInput(e.target.value)}
+                  placeholder={
+                    climbSolved
+                      ? 'Vault unlocked!'
+                      : remainingLeagues === 0
+                      ? 'Ship stranded in mist'
+                      : isRecording
+                      ? 'Listening to speech...'
+                      : 'Type any word...'
+                  }
+                  disabled={climbEvaluating || climbSolved || remainingLeagues === 0}
+                  autoComplete="off"
+                />
+
+                <button
+                  type="button"
+                  className={`icon-pill-btn ${isRecording ? 'recording' : ''}`}
+                  onClick={toggleListening}
+                  title={isRecording ? 'Listening... click to stop' : 'Speak your guess hands-free'}
+                  aria-label="Microphone"
+                  disabled={climbSolved || remainingLeagues === 0}
+                >
+                  <svg className="icon-svg" viewBox="0 0 24 24">
+                    <path d="M12 1a3 3 0 0 0-3 3v8a3 3 0 0 0 6 0V4a3 3 0 0 0-3-3z" />
+                    <path d="M19 10v2a7 7 0 0 1-14 0v-2" />
+                    <line x1="12" y1="19" x2="12" y2="23" />
+                    <line x1="8" y1="23" x2="16" y2="23" />
+                  </svg>
+                </button>
+
+                <button
+                  type="submit"
+                  className="pill dig-btn"
+                  disabled={climbEvaluating || climbSolved || remainingLeagues === 0}
+                >
+                  Dig
+                </button>
+              </form>
+
+              {/* Starter Bearing Suggestions */}
+              {climbGuesses.length === 0 && !climbSolved && (
+                <div className="starter-chips-row">
+                  <span className="starter-label">Try a starting word:</span>
+                  {(dailyClue.suggestions || ['Beacon', 'Tower', 'Ocean']).map((sugg) => (
+                    <button
+                      key={sugg}
+                      type="button"
+                      className="starter-chip"
+                      onClick={() => handleQuickGuess(sugg)}
+                      disabled={climbEvaluating || remainingLeagues === 0}
+                    >
+                      {sugg}
+                    </button>
+                  ))}
                 </div>
+              )}
 
-                {/* Input Form with Hands-Free Speech Microphone & Dig Button */}
-                <form onSubmit={handleClimbSubmit} className="input-row">
-                  <input
-                    ref={climbInputRef}
-                    className="ink-input"
-                    type="text"
-                    value={climbInput}
-                    onChange={(e) => setClimbInput(e.target.value)}
-                    placeholder={
-                      climbSolved
-                        ? 'Vault unlocked!'
-                        : remainingLeagues === 0
-                        ? 'Ship stranded in mist'
-                        : isRecording
-                        ? 'Listening to speech...'
-                        : 'Type any word...'
-                    }
-                    disabled={climbEvaluating || climbSolved || remainingLeagues === 0}
-                    autoComplete="off"
-                  />
-
-                  <button
-                    type="button"
-                    className={`icon-pill-btn ${isRecording ? 'recording' : ''}`}
-                    onClick={toggleListening}
-                    title={isRecording ? 'Listening... click to stop' : 'Speak your guess hands-free'}
-                    aria-label="Microphone"
-                    disabled={climbSolved || remainingLeagues === 0}
-                  >
-                    <svg className="icon-svg" viewBox="0 0 24 24">
-                      <path d="M12 1a3 3 0 0 0-3 3v8a3 3 0 0 0 6 0V4a3 3 0 0 0-3-3z" />
-                      <path d="M19 10v2a7 7 0 0 1-14 0v-2" />
-                      <line x1="12" y1="19" x2="12" y2="23" />
-                      <line x1="8" y1="23" x2="16" y2="23" />
-                    </svg>
-                  </button>
-
-                  <button
-                    type="submit"
-                    className="pill dig-btn"
-                    disabled={climbEvaluating || climbSolved || remainingLeagues === 0}
-                  >
-                    Dig
-                  </button>
-                </form>
-
-                {/* Starter Bearing Suggestions */}
-                {climbGuesses.length === 0 && !climbSolved && (
-                  <div className="starter-chips-row">
-                    <span className="starter-label">Try a starting word:</span>
-                    {(dailyClue.suggestions || ['Beacon', 'Tower', 'Ocean']).map((sugg) => (
-                      <button
-                        key={sugg}
-                        type="button"
-                        className="starter-chip"
-                        onClick={() => handleQuickGuess(sugg)}
-                        disabled={climbEvaluating || remainingLeagues === 0}
-                      >
-                        {sugg}
-                      </button>
-                    ))}
-                  </div>
-                )}
-
-                {speechFeedback && (
-                  <div className="speech-hint">
-                    {speechFeedback}
-                  </div>
-                )}
+              {/* Helmsman Banter Scroll */}
+              <div className="captain-scroll">
+                <span>&ldquo;{captainBanter}&rdquo;</span>
               </div>
+
+              {speechFeedback && (
+                <div className="speech-hint">
+                  {speechFeedback}
+                </div>
+              )}
             </div>
+
+            {/* 2. Answers Container - Rendered distinctly BELOW the question & input! */}
+            {climbGuesses.length > 0 && (
+              <div className="answers-container">
+                <div className="answers-header">
+                  <span className="answers-title">Cast Bearings ({climbGuesses.length})</span>
+                  <span className="answers-subtitle">Closest concepts on top</span>
+                </div>
+                <div className="answers-list" ref={feedRef}>
+                  {climbGuesses.map((g, i) => {
+                    const statusClass = g.solved ? 'solved' : g.rank <= 300 ? 'hot' : g.rank <= 1500 ? 'warm' : 'cold';
+                    const statusLabel = g.solved ? 'SOLVED' : g.rank <= 300 ? 'HOT' : g.rank <= 1500 ? 'WARM' : 'COLD';
+                    return (
+                      <div key={i} className={`answer-card ${statusClass}`}>
+                        <div className="answer-card-header">
+                          <span className={`rank-badge ${statusClass}`}>{statusLabel}</span>
+                          <span className="answer-word">{g.guess}</span>
+                          <span className="answer-rank">#{g.rank}</span>
+                        </div>
+                        <div className="answer-card-footer">
+                          <span>
+                            {g.solved
+                              ? 'Vault Unlocked!'
+                              : g.rank <= 300
+                              ? 'Burning hot bearing!'
+                              : g.rank <= 1500
+                              ? 'Warm shallows nearby.'
+                              : 'Cold waters. Ship drifts further.'}
+                          </span>
+                          <button
+                            type="button"
+                            className="pronounce-btn"
+                            onClick={() => pronounceWord(g.guess)}
+                            title="Hear pronunciation aloud"
+                          >
+                            <svg className="icon-svg" style={{ width: '12px', height: '12px' }} viewBox="0 0 24 24">
+                              <polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5" />
+                              <path d="M19.07 4.93a10 10 0 0 1 0 14.14M15.54 8.46a5 5 0 0 1 0 7.07" />
+                            </svg>
+                            Pronounce
+                          </button>
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+            )}
           </div>
         </div>
 
