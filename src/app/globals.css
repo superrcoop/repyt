@@ -538,17 +538,21 @@ html.fine #ping {
 
 .input-row {
   display: flex;
-  gap: 10px;
-  align-items: stretch;
+  gap: 8px;
+  align-items: center;
+  width: 100%;
+  box-sizing: border-box;
 }
 
 .ink-input {
-  flex: 1;
+  flex: 1 1 0%;
+  min-width: 0;
+  width: 0;
   background: #fbf8ef;
   border: 3px solid var(--line);
   border-radius: 999px;
-  padding: 13px 20px 10px;
-  font: 600 18px/1 "Josefin Sans", sans-serif;
+  padding: 12px 18px 10px;
+  font: 600 17px/1 "Josefin Sans", sans-serif;
   color: var(--ink);
   box-shadow: inset 0 2px 4px rgba(0, 0, 0, 0.06);
 }
@@ -559,8 +563,9 @@ html.fine #ping {
 }
 
 .icon-pill-btn {
-  width: 48px;
-  height: 48px;
+  width: 46px;
+  height: 46px;
+  flex: 0 0 46px;
   border: 3px solid var(--line);
   border-radius: 50%;
   background: #ece7d8;
@@ -582,6 +587,37 @@ html.fine #ping {
   border-color: var(--rose);
   color: var(--rose);
   animation: micPulse 1.2s infinite;
+}
+
+.dig-btn,
+.pill.dig-btn {
+  flex: 0 0 auto !important;
+  display: inline-flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+  font: 600 16px/1 "Josefin Sans", sans-serif !important;
+  text-transform: uppercase !important;
+  letter-spacing: 0.04em !important;
+  border: 3px solid var(--line) !important;
+  border-radius: 999px !important;
+  background: #ece7d8 !important;
+  box-shadow: 0 5px 0 -1px var(--paper), 0 5px 0 2px var(--line) !important;
+  transition: transform 0.25s, box-shadow 0.25s !important;
+  padding: 13px 28px 10px !important;
+  cursor: pointer !important;
+  white-space: nowrap !important;
+}
+
+.dig-btn:hover,
+.pill.dig-btn:hover {
+  transform: translateY(2px) !important;
+  box-shadow: 0 3px 0 -1px var(--paper), 0 3px 0 2px var(--line) !important;
+}
+
+.dig-btn:active,
+.pill.dig-btn:active {
+  transform: translateY(4px) !important;
+  box-shadow: 0 1px 0 -1px var(--paper), 0 1px 0 2px var(--line) !important;
 }
 
 @keyframes micPulse {
@@ -793,15 +829,14 @@ dialog::backdrop {
 }
 
 .portrait .t2 {
-  left: 50%;
-  transform: translateX(-50%);
-  top: 460px;
-  width: min(720px, 92%);
-  max-height: 980px;
+  left: 50px;
+  width: 700px;
+  top: 440px;
+  max-height: 1020px;
   overflow-y: auto;
   -webkit-overflow-scrolling: touch;
   scrollbar-width: thin;
-  padding-bottom: 30px;
+  padding-bottom: 40px;
   z-index: 22;
 }
 
@@ -814,7 +849,7 @@ dialog::backdrop {
   margin-top: 8px;
 }
 
-.portrait .t2 .pill {
+.portrait .t2 .pill:not(.dig-btn) {
   font-size: 18px;
   padding: 16px 40px 13px;
 }
@@ -862,8 +897,13 @@ dialog::backdrop {
     font-size: 24px;
   }
   .portrait .t2 {
-    top: 430px;
-    max-height: calc(100% - 440px);
+    left: 40px;
+    width: 720px;
+    top: 420px;
+    max-height: 1040px;
+  }
+  .island-climb-box {
+    padding: 14px 16px;
   }
 }
 
@@ -881,4 +921,24 @@ dialog::backdrop {
   .nav-badge span:last-child {
     display: none; /* Hide rank title to keep badge compact */
   }
+  .portrait .t2 {
+    left: 30px;
+    width: 740px;
+    top: 400px;
+  }
+  .ink-input {
+    padding: 10px 14px 8px;
+    font-size: 15px;
+  }
+  .icon-pill-btn {
+    width: 42px;
+    height: 42px;
+    flex: 0 0 42px;
+  }
+  .dig-btn,
+  .pill.dig-btn {
+    padding: 11px 20px 9px !important;
+    font-size: 14px !important;
+  }
 }
+

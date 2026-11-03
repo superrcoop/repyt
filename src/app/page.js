@@ -963,8 +963,7 @@ export default function RepytGame() {
 
                 <button
                   type="submit"
-                  className="pill"
-                  style={{ padding: '14px 24px 11px', fontSize: '15px' }}
+                  className="pill dig-btn"
                   disabled={climbEvaluating || climbSolved || remainingLeagues === 0}
                 >
                   Dig
