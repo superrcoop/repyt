@@ -52,8 +52,8 @@ const LAY = {
     wave: { y0: 1300, y1: 430, gap0: 1, gap1: 0.7 },
     ship: { x0: 420, w0: 620, x1: 640, w1: 150 },
     palm: { x: -140, y: -60, w: 500 },
-    capt: { x: 20, y: 240, w: 360 }, // elevated so interactive controls fit underneath
-    chest: { x: 440, y: 430, w: 160 },
+    capt: { x: 20, y: 140, w: 300 }, // elevated so character artwork never overlaps bottom game panel
+    chest: { x: 440, y: 280, w: 140 },
     bushL: { x: -40, y: 1330, w: 520 },
     bushR: { x: 570, y: 1340, w: 260 }
   }
@@ -155,10 +155,8 @@ export default function RepytGame() {
   const bushRRef = useRef(null);
   const h2Ref = useRef(null);
   const p2Ref = useRef(null);
-  const btn2Ref = useRef(null);
   const t2Ref = useRef(null);
-  const curRef = useRef(null);
-  const pingRef = useRef(null);
+  const feedRef = useRef(null);
 
   // Transition engine refs
   const transitionRef = useRef({
@@ -172,6 +170,13 @@ export default function RepytGame() {
 
   // Speech Recognition ref
   const recognitionRef = useRef(null);
+
+  // Auto-scroll game feed when new answers arrive so question moves upward
+  useEffect(() => {
+    if (feedRef.current) {
+      feedRef.current.scrollTop = feedRef.current.scrollHeight;
+    }
+  }, [climbGuesses]);
 
   // 1. Initial Setup: Audio, Stats, Speech Recognition & Daily Clue Fetch
   useEffect(() => {
@@ -189,11 +194,6 @@ export default function RepytGame() {
         }
       })
       .catch((err) => console.warn('Could not load daily clue:', err));
-
-    // Check fine cursor
-    if (window.matchMedia('(hover: hover) and (pointer: fine)').matches) {
-      document.documentElement.classList.add('fine');
-    }
 
     // Initialize Web Speech Recognition
     if (typeof window !== 'undefined') {
@@ -282,42 +282,8 @@ export default function RepytGame() {
     let animId;
     const t0 = performance.now();
 
-    // Mouse coordinates for ring cursor
-    let mx = -100;
-    let my = -100;
-    let cx = -100;
-    let cy = -100;
-    let isPressed = false;
-    let isOverLink = false;
-
     // Smoothed mist level for ship lifeline (0 at shore -> 1 vanished at horizon)
     let currentMist = 0;
-
-    const onPointerMove = (e) => {
-      mx = e.clientX;
-      my = e.clientY;
-      const target = e.target;
-      isOverLink = Boolean(target && (target.closest('a') || target.closest('button') || target.closest('.pill')));
-    };
-
-    const onPointerDown = (e) => {
-      isPressed = true;
-      const ping = pingRef.current;
-      if (ping) {
-        ping.style.left = `${e.clientX}px`;
-        ping.style.top = `${e.clientY}px`;
-        ping.style.opacity = '1';
-        ping.style.transform = 'scale(1)';
-        ping.animate([
-          { transform: 'scale(1)', opacity: 1 },
-          { transform: 'scale(2.9)', opacity: 0 },
-        ], { duration: 650, easing: 'ease-out', fill: 'forwards' });
-      }
-    };
-
-    const onPointerUp = () => {
-      isPressed = false;
-    };
 
     const onWheel = (e) => {
       const now = performance.now();
@@ -333,9 +299,6 @@ export default function RepytGame() {
       }
     };
 
-    window.addEventListener('pointermove', onPointerMove);
-    window.addEventListener('pointerdown', onPointerDown);
-    window.addEventListener('pointerup', onPointerUp);
     window.addEventListener('wheel', onWheel, { passive: true });
 
     // Apply sprite background clipping
@@ -382,6 +345,8 @@ export default function RepytGame() {
       const DY = (DH - L.h) / 2;
 
       if (sceneRef.current) {
+        sceneRef.current.style.width = `${L.w}px`;
+        sceneRef.current.style.height = `${L.h}px`;
         sceneRef.current.style.transform = `translate(${DX * S}px, ${DY * S}px) scale(${S})`;
       }
 
@@ -555,29 +520,12 @@ export default function RepytGame() {
         p2Ref.current.style.opacity = `${pk}`;
       }
 
-      if (btn2Ref.current) {
-        const bk = seg(p, 0.8, 1);
-        btn2Ref.current.style.opacity = `${bk}`;
-        btn2Ref.current.style.transform = `scale(${mix(0.7, 1, back(bk))})`;
-      }
-
       // Palm shade canvas dynamic drift
       if (shadeCanvasRef.current) {
         const sxTrans = Math.sin(t * 0.35) * 2.2;
         const syTrans = Math.cos(t * 0.27) * 1.6;
         const sRot = Math.sin(t * 0.22) * 0.8;
         shadeCanvasRef.current.style.transform = `translate(${sxTrans}%, ${syTrans}%) rotate(${sRot}deg)`;
-      }
-
-      // Cursor physics easing
-      if (curRef.current) {
-        const fCur = 1 - Math.exp(-dt * 22);
-        cx += (mx - cx) * fCur;
-        cy += (my - cy) * fCur;
-        const curScale = isPressed ? 0.7 : isOverLink ? 1.35 : 1.0;
-        curRef.current.style.left = `${cx}px`;
-        curRef.current.style.top = `${cy}px`;
-        curRef.current.style.transform = `scale(${curScale})`;
       }
 
       animId = requestAnimationFrame(render);
@@ -587,9 +535,6 @@ export default function RepytGame() {
 
     return () => {
       cancelAnimationFrame(animId);
-      window.removeEventListener('pointermove', onPointerMove);
-      window.removeEventListener('pointerdown', onPointerDown);
-      window.removeEventListener('pointerup', onPointerUp);
       window.removeEventListener('wheel', onWheel);
     };
   }, [goToScene]);
@@ -878,172 +823,183 @@ export default function RepytGame() {
           <div className="spr" id="bushL" ref={bushLRef} />
           <div className="spr" id="bushR" ref={bushRRef} />
 
-          {/* Scene 1: The Repyt Vault Interaction (Hidden until Voyage Starts) */}
+          {/* Scene 1: The Repyt Vault Interaction (Docked Bottom Sticky on Mobile) */}
           <div className="t2" id="t2" ref={t2Ref}>
-            <h2 id="h2" ref={h2Ref}>The Repyt<br />Vault</h2>
-            <p id="p2" ref={p2Ref}>
-              Deduce today&apos;s secret concept to open the golden vault.<br />
-              Every missed guess pushes your ship further toward the horizon.
-            </p>
-
-            <div className="island-climb-box">
-              {/* Daily Clue & Realm */}
-              <div className="daily-clue-card">
-                <div className="clue-meta">
-                  <span className="clue-tag">Realm: {dailyClue.category}</span>
-                  <span style={{ fontSize: '10.5px', opacity: 0.65, fontWeight: 700, letterSpacing: '0.1em' }}>DAILY CLUE</span>
-                </div>
-                <div className="clue-text">&ldquo;{dailyClue.hint}&rdquo;</div>
+            {/* Vault Header with title & desktop/mobile Back to Sea button */}
+            <div className="vault-header">
+              <div className="vault-title-wrap">
+                <h2 id="h2" ref={h2Ref}>The Repyt<br />Vault</h2>
+                <p id="p2" ref={p2Ref}>
+                  Deduce today&apos;s secret concept to open the golden vault.
+                </p>
               </div>
-
-              {/* How to Play Explainer */}
-              <div className="how-to-play-hint">
-                Enter any word. Repyt measures its meaning against the secret target: <strong>HOT</strong> (#2–300) = very close; <strong>COLD</strong> (#1501+) = far away. Reach #1 before your 5 leagues expire!
-              </div>
-
-              {/* Ship Horizon Distance Lifeline Gauge */}
-              <div className="lifeline-gauge">
-                <div className="gauge-header">
-                  <span className="gauge-title">Ship Distance to Horizon</span>
-                  <span className={`gauge-status ${remainingLeagues <= 1 ? 'danger' : ''}`}>
-                    {remainingLeagues === 0 ? 'Ship Lost in Mist' : `${remainingLeagues} Leagues Remaining`}
-                  </span>
-                </div>
-                <div className="gauge-track">
-                  {[0, 1, 2, 3, 4].map((index) => {
-                    const isLost = index < incorrectGuesses;
-                    const isCritical = remainingLeagues <= 2;
-                    return (
-                      <div
-                        key={index}
-                        className={`gauge-knot ${isLost ? 'lost' : isCritical ? 'warning' : 'safe'}`}
-                        title={`League ${index + 1}`}
-                      />
-                    );
-                  })}
-                </div>
-              </div>
-
-              {/* Input Form with Hands-Free Speech Microphone */}
-              <form onSubmit={handleClimbSubmit} className="input-row">
-                <input
-                  ref={climbInputRef}
-                  className="ink-input"
-                  type="text"
-                  value={climbInput}
-                  onChange={(e) => setClimbInput(e.target.value)}
-                  placeholder={
-                    climbSolved
-                      ? 'Vault unlocked!'
-                      : remainingLeagues === 0
-                      ? 'Ship stranded in mist'
-                      : isRecording
-                      ? 'Listening to speech...'
-                      : 'Type any word...'
-                  }
-                  disabled={climbEvaluating || climbSolved || remainingLeagues === 0}
-                  autoComplete="off"
-                />
-
-                <button
-                  type="button"
-                  className={`icon-pill-btn ${isRecording ? 'recording' : ''}`}
-                  onClick={toggleListening}
-                  title={isRecording ? 'Listening... click to stop' : 'Speak your guess hands-free'}
-                  aria-label="Microphone"
-                  disabled={climbSolved || remainingLeagues === 0}
-                >
-                  <svg className="icon-svg" viewBox="0 0 24 24">
-                    <path d="M12 1a3 3 0 0 0-3 3v8a3 3 0 0 0 6 0V4a3 3 0 0 0-3-3z" />
-                    <path d="M19 10v2a7 7 0 0 1-14 0v-2" />
-                    <line x1="12" y1="19" x2="12" y2="23" />
-                    <line x1="8" y1="23" x2="16" y2="23" />
-                  </svg>
-                </button>
-
-                <button
-                  type="submit"
-                  className="pill dig-btn"
-                  disabled={climbEvaluating || climbSolved || remainingLeagues === 0}
-                >
-                  Dig
-                </button>
-              </form>
-
-              {/* Starter Bearing Suggestions */}
-              {climbGuesses.length === 0 && !climbSolved && (
-                <div className="starter-chips-row">
-                  <span className="starter-label">Try a starting word:</span>
-                  {(dailyClue.suggestions || ['Beacon', 'Tower', 'Ocean']).map((sugg) => (
-                    <button
-                      key={sugg}
-                      type="button"
-                      className="starter-chip"
-                      onClick={() => handleQuickGuess(sugg)}
-                      disabled={climbEvaluating || remainingLeagues === 0}
-                    >
-                      {sugg}
-                    </button>
-                  ))}
-                </div>
-              )}
-
-              {speechFeedback && (
-                <div className="speech-hint">
-                  {speechFeedback}
-                </div>
-              )}
-
-              {/* Helmsman Banter Scroll */}
-              <div className="captain-scroll">
-                <span>&ldquo;{captainBanter}&rdquo;</span>
-              </div>
-
-              {/* Guess Proximity Log */}
-              {climbGuesses.length > 0 && (
-                <div className="guess-log">
-                  {climbGuesses.map((g, i) => {
-                    const statusClass = g.solved ? 'solved' : g.rank <= 300 ? 'hot' : g.rank <= 1500 ? 'warm' : 'cold';
-                    const statusLabel = g.solved ? 'SOLVED' : g.rank <= 300 ? 'HOT' : g.rank <= 1500 ? 'WARM' : 'COLD';
-                    return (
-                      <div key={i} className={`guess-row ${statusClass}`}>
-                        <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                          <span className="rank-badge">{statusLabel}</span>
-                          <span style={{ fontWeight: 600 }}>{g.guess}</span>
-                          <button
-                            type="button"
-                            className="pronounce-btn"
-                            onClick={() => pronounceWord(g.guess)}
-                            title="Hear pronunciation aloud"
-                          >
-                            <svg className="icon-svg" style={{ width: '12px', height: '12px' }} viewBox="0 0 24 24">
-                              <polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5" />
-                              <path d="M19.07 4.93a10 10 0 0 1 0 14.14M15.54 8.46a5 5 0 0 1 0 7.07" />
-                            </svg>
-                            Pronounce
-                          </button>
-                        </div>
-                        <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                          <span style={{ fontVariantNumeric: 'tabular-nums' }}>#{g.rank}</span>
-                        </div>
-                      </div>
-                    );
-                  })}
-                </div>
-              )}
-            </div>
-
-            <div className="btnw" id="btn2" ref={btn2Ref}>
-              <i className="tick a" />
-              <i className="tick b" />
-              <i className="tick c" />
               <button
-                className="pill"
+                type="button"
+                className="pill back-btn"
                 onClick={() => goToScene(0)}
                 title="Return to ship voyage"
               >
+                <svg className="icon-svg" style={{ width: '13px', height: '13px', marginRight: '5px' }} viewBox="0 0 24 24">
+                  <path d="M19 12H5M12 19l-7-7 7-7" />
+                </svg>
                 Back to Sea
               </button>
+            </div>
+
+            <div className="island-climb-box">
+              {/* SCROLLABLE GAME FEED: Question at top, new Answer cards added below, pushing Question UP */}
+              <div className="game-feed" ref={feedRef}>
+                {/* Question / Daily Clue Container */}
+                <div className="daily-clue-card">
+                  <div className="clue-meta">
+                    <span className="clue-tag">Realm: {dailyClue.category}</span>
+                    <span className="clue-badge">DAILY CLUE</span>
+                  </div>
+                  <div className="clue-text">&ldquo;{dailyClue.hint}&rdquo;</div>
+                  <div className="how-to-play-hint">
+                    Repyt measures semantic proximity: <strong>HOT</strong> (#2–300) = very close; <strong>COLD</strong> (#1501+) = far away. Reach #1 before your 5 leagues expire!
+                  </div>
+                </div>
+
+                {/* Answer Containers: display each guess in its own card, pushing the question up */}
+                {climbGuesses.map((g, i) => {
+                  const statusClass = g.solved ? 'solved' : g.rank <= 300 ? 'hot' : g.rank <= 1500 ? 'warm' : 'cold';
+                  const statusLabel = g.solved ? 'SOLVED' : g.rank <= 300 ? 'HOT' : g.rank <= 1500 ? 'WARM' : 'COLD';
+                  return (
+                    <div key={i} className={`answer-card ${statusClass}`}>
+                      <div className="answer-card-header">
+                        <span className={`rank-badge ${statusClass}`}>{statusLabel}</span>
+                        <span className="answer-word">{g.guess}</span>
+                        <span className="answer-rank">#{g.rank}</span>
+                      </div>
+                      <div className="answer-card-footer">
+                        <span>
+                          {g.solved
+                            ? 'Vault Unlocked!'
+                            : g.rank <= 300
+                            ? 'Burning hot bearing!'
+                            : g.rank <= 1500
+                            ? 'Warm shallows nearby.'
+                            : 'Cold waters. Ship drifts further.'}
+                        </span>
+                        <button
+                          type="button"
+                          className="pronounce-btn"
+                          onClick={() => pronounceWord(g.guess)}
+                          title="Hear pronunciation aloud"
+                        >
+                          <svg className="icon-svg" style={{ width: '12px', height: '12px' }} viewBox="0 0 24 24">
+                            <polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5" />
+                            <path d="M19.07 4.93a10 10 0 0 1 0 14.14M15.54 8.46a5 5 0 0 1 0 7.07" />
+                          </svg>
+                          Pronounce
+                        </button>
+                      </div>
+                    </div>
+                  );
+                })}
+
+                {/* Helmsman Banter Scroll inside feed */}
+                <div className="captain-scroll">
+                  <span>&ldquo;{captainBanter}&rdquo;</span>
+                </div>
+              </div>
+
+              {/* STICKY GAME CONTROLS: Lifeline Gauge + Input Form + Suggestions */}
+              <div className="sticky-game-controls">
+                {/* Ship Horizon Distance Lifeline Gauge */}
+                <div className="lifeline-gauge">
+                  <div className="gauge-header">
+                    <span className="gauge-title">Ship Distance to Horizon</span>
+                    <span className={`gauge-status ${remainingLeagues <= 1 ? 'danger' : ''}`}>
+                      {remainingLeagues === 0 ? 'Ship Lost in Mist' : `${remainingLeagues} Leagues Remaining`}
+                    </span>
+                  </div>
+                  <div className="gauge-track">
+                    {[0, 1, 2, 3, 4].map((index) => {
+                      const isLost = index < incorrectGuesses;
+                      const isCritical = remainingLeagues <= 2;
+                      return (
+                        <div
+                          key={index}
+                          className={`gauge-knot ${isLost ? 'lost' : isCritical ? 'warning' : 'safe'}`}
+                          title={`League ${index + 1}`}
+                        />
+                      );
+                    })}
+                  </div>
+                </div>
+
+                {/* Input Form with Hands-Free Speech Microphone & Dig Button */}
+                <form onSubmit={handleClimbSubmit} className="input-row">
+                  <input
+                    ref={climbInputRef}
+                    className="ink-input"
+                    type="text"
+                    value={climbInput}
+                    onChange={(e) => setClimbInput(e.target.value)}
+                    placeholder={
+                      climbSolved
+                        ? 'Vault unlocked!'
+                        : remainingLeagues === 0
+                        ? 'Ship stranded in mist'
+                        : isRecording
+                        ? 'Listening to speech...'
+                        : 'Type any word...'
+                    }
+                    disabled={climbEvaluating || climbSolved || remainingLeagues === 0}
+                    autoComplete="off"
+                  />
+
+                  <button
+                    type="button"
+                    className={`icon-pill-btn ${isRecording ? 'recording' : ''}`}
+                    onClick={toggleListening}
+                    title={isRecording ? 'Listening... click to stop' : 'Speak your guess hands-free'}
+                    aria-label="Microphone"
+                    disabled={climbSolved || remainingLeagues === 0}
+                  >
+                    <svg className="icon-svg" viewBox="0 0 24 24">
+                      <path d="M12 1a3 3 0 0 0-3 3v8a3 3 0 0 0 6 0V4a3 3 0 0 0-3-3z" />
+                      <path d="M19 10v2a7 7 0 0 1-14 0v-2" />
+                      <line x1="12" y1="19" x2="12" y2="23" />
+                      <line x1="8" y1="23" x2="16" y2="23" />
+                    </svg>
+                  </button>
+
+                  <button
+                    type="submit"
+                    className="pill dig-btn"
+                    disabled={climbEvaluating || climbSolved || remainingLeagues === 0}
+                  >
+                    Dig
+                  </button>
+                </form>
+
+                {/* Starter Bearing Suggestions */}
+                {climbGuesses.length === 0 && !climbSolved && (
+                  <div className="starter-chips-row">
+                    <span className="starter-label">Try a starting word:</span>
+                    {(dailyClue.suggestions || ['Beacon', 'Tower', 'Ocean']).map((sugg) => (
+                      <button
+                        key={sugg}
+                        type="button"
+                        className="starter-chip"
+                        onClick={() => handleQuickGuess(sugg)}
+                        disabled={climbEvaluating || remainingLeagues === 0}
+                      >
+                        {sugg}
+                      </button>
+                    ))}
+                  </div>
+                )}
+
+                {speechFeedback && (
+                  <div className="speech-hint">
+                    {speechFeedback}
+                  </div>
+                )}
+              </div>
             </div>
           </div>
         </div>
@@ -1051,10 +1007,6 @@ export default function RepytGame() {
         {/* Dynamic Palm Shade Canvas (64x36) */}
         <canvas id="shade" ref={shadeCanvasRef} width="64" height="36" />
       </main>
-
-      {/* Custom Ring Cursor Elements */}
-      <div id="ping" ref={pingRef} />
-      <div id="cur" ref={curRef} />
 
       {/* Rules / Articles Modal */}
       <dialog
