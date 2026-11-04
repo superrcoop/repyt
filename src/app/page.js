@@ -18,10 +18,6 @@ import {
   getPirateRank,
   getPreferences,
   savePreferences,
-  SHIPYARD_CATALOG,
-  getShipyardData,
-  unlockShipyardItem,
-  equipShipyardItem,
   getDailyQuests,
   updateQuestProgress,
   claimQuestReward,
@@ -162,13 +158,7 @@ export default function RepytGame() {
   // Selectable AI Captains in Word Tennis: 'barnaby' | 'siren' | 'blackbeard'
   const [tennisCaptain, setTennisCaptain] = useState('siren');
 
-  // The Shipyard & Daily Quests
-  const [shipyard, setShipyard] = useState({
-    equippedShip: 'sloop',
-    unlockedShips: ['sloop'],
-    equippedTheme: 'sand',
-    unlockedThemes: ['sand'],
-  });
+  // Daily Quests
   const [dailyQuests, setDailyQuests] = useState([]);
   const [shareToast, setShareToast] = useState('');
 
@@ -177,7 +167,6 @@ export default function RepytGame() {
   const statsDialogRef = useRef(null);
   const strandedDialogRef = useRef(null);
   const victoryDialogRef = useRef(null);
-  const shipyardDialogRef = useRef(null);
   const climbInputRef = useRef(null);
 
   // Canvas & Scene DOM refs
@@ -226,14 +215,6 @@ export default function RepytGame() {
     setSoundMuted(!prefs.sound);
     sound.setMuted(!prefs.sound);
     setStats(getPlayerStats());
-
-    // Load Shipyard & Equipped Theme
-    const shipyardData = getShipyardData();
-    setShipyard(shipyardData);
-    const themeObj = SHIPYARD_CATALOG.themes.find((t) => t.id === shipyardData.equippedTheme);
-    if (themeObj && typeof document !== 'undefined') {
-      document.documentElement.style.setProperty('--paper', themeObj.bg);
-    }
 
     // Load Daily Logbook Quests
     setDailyQuests(getDailyQuests());
@@ -891,36 +872,7 @@ export default function RepytGame() {
     }
   };
 
-  // Shipyard & Daily Quests Action Handlers
-  const handleUnlockItem = (type, itemId, cost) => {
-    const res = unlockShipyardItem(type, itemId, cost);
-    if (res.success) {
-      setShipyard(res.shipyard);
-      setStats(res.stats);
-      sound.streak();
-      triggerConfetti({ particleCount: 70, spread: 60 });
-      if (type === 'theme') {
-        const themeObj = SHIPYARD_CATALOG.themes.find((t) => t.id === itemId);
-        if (themeObj && typeof document !== 'undefined') {
-          document.documentElement.style.setProperty('--paper', themeObj.bg);
-        }
-      }
-    } else {
-      sound.error();
-      alert(res.reason || 'Could not unlock item');
-    }
-  };
 
-  const handleEquipItem = (type, itemId) => {
-    const updated = equipShipyardItem(type, itemId);
-    setShipyard(updated);
-    if (type === 'theme') {
-      const themeObj = SHIPYARD_CATALOG.themes.find((t) => t.id === itemId);
-      if (themeObj && typeof document !== 'undefined') {
-        document.documentElement.style.setProperty('--paper', themeObj.bg);
-      }
-    }
-  };
 
   const handleClaimQuest = (questId) => {
     const res = claimQuestReward(questId);
@@ -1064,10 +1016,6 @@ export default function RepytGame() {
             Rules
           </button>
 
-          <button onClick={() => openDialog(shipyardDialogRef)} title="The Shipyard (Fleet Vessels & Map Themes)">
-            Shipyard
-          </button>
-
           <button onClick={() => openDialog(statsDialogRef)} title="Navigator's Log">
             Log
           </button>
@@ -1088,7 +1036,6 @@ export default function RepytGame() {
           </button>
 
           <div className="nav-badge" title="Your Pirate Gold">
-            <span>{SHIPYARD_CATALOG.ships.find((s) => s.id === shipyard.equippedShip)?.name || 'Vessel'}</span>
             <span>{stats.doubloons} Gold</span>
             <span style={{ opacity: 0.6 }}>· {pirateRank.title}</span>
           </div>
@@ -1634,7 +1581,7 @@ export default function RepytGame() {
               {pirateRank.title}
             </div>
             <div style={{ font: '700 12px/1 "Open Sans"', opacity: 0.6, letterSpacing: '0.14em', textTransform: 'uppercase' }}>
-              {pirateRank.badge} NAVIGATOR · {SHIPYARD_CATALOG.ships.find((s) => s.id === shipyard.equippedShip)?.name || 'Swift Sloop'}
+              {pirateRank.badge} NAVIGATOR
             </div>
           </div>
 
@@ -1816,114 +1763,7 @@ export default function RepytGame() {
         </button>
       </dialog>
 
-      {/* The Pirate Shipyard Modal Dialog */}
-      <dialog
-        ref={shipyardDialogRef}
-        className="shipyard-dialog"
-        onClose={() => document.documentElement.classList.remove('has-modal')}
-        onClick={(e) => e.target === shipyardDialogRef.current && closeDialog(shipyardDialogRef)}
-      >
-        <div className="modal-header">
-          <div>
-            <h3 className="modal-title">The Pirate Shipyard</h3>
-            <div className="rules-modal-sub">Fleet Vessels &amp; Navigational Charts</div>
-          </div>
-          <button className="icon-pill-btn" onClick={() => closeDialog(shipyardDialogRef)} aria-label="Close modal">
-            <svg className="icon-svg" viewBox="0 0 24 24">
-              <line x1="18" y1="6" x2="6" y2="18" />
-              <line x1="6" y1="6" x2="18" y2="18" />
-            </svg>
-          </button>
-        </div>
-        <div className="modal-body shipyard-modal-body">
-          <div className="shipyard-gold-banner">
-            <span>Pirate Treasury:</span>
-            <span className="shipyard-gold-amount">{stats.doubloons} Doubloons</span>
-          </div>
 
-          <h4 className="shipyard-cat-title">Fleet Flagships</h4>
-          <div className="shipyard-grid">
-            {SHIPYARD_CATALOG.ships.map((s) => {
-              const isUnlocked = shipyard.unlockedShips.includes(s.id);
-              const isEquipped = shipyard.equippedShip === s.id;
-              const canAfford = stats.doubloons >= s.cost;
-              return (
-                <div key={s.id} className={`shipyard-item-card ${isEquipped ? 'equipped' : ''}`}>
-                  <div className="shipyard-icon">[{s.code}]</div>
-                  <div className="shipyard-name">{s.name}</div>
-                  <div className="shipyard-desc">{s.desc}</div>
-                  <div className="shipyard-card-footer">
-                    {isEquipped ? (
-                      <span className="shipyard-badge equipped">Active Vessel</span>
-                    ) : isUnlocked ? (
-                      <button
-                        type="button"
-                        className="shipyard-btn equip"
-                        onClick={() => handleEquipItem('ship', s.id)}
-                      >
-                        Set Sail
-                      </button>
-                    ) : (
-                      <button
-                        type="button"
-                        className={`shipyard-btn buy ${!canAfford ? 'disabled' : ''}`}
-                        onClick={() => handleUnlockItem('ship', s.id, s.cost)}
-                        disabled={!canAfford}
-                      >
-                        Buy: {s.cost} Gold
-                      </button>
-                    )}
-                  </div>
-                </div>
-              );
-            })}
-          </div>
-
-          <h4 className="shipyard-cat-title" style={{ marginTop: '16px' }}>Parchment Map Themes</h4>
-          <div className="shipyard-grid">
-            {SHIPYARD_CATALOG.themes.map((t) => {
-              const isUnlocked = shipyard.unlockedThemes.includes(t.id);
-              const isEquipped = shipyard.equippedTheme === t.id;
-              const canAfford = stats.doubloons >= t.cost;
-              return (
-                <div key={t.id} className={`shipyard-item-card ${isEquipped ? 'equipped' : ''}`}>
-                  <div
-                    className="shipyard-swatch"
-                    style={{ background: t.bg, border: '2px solid var(--line)' }}
-                  />
-                  <div className="shipyard-name">{t.name}</div>
-                  <div className="shipyard-desc">{t.desc}</div>
-                  <div className="shipyard-card-footer">
-                    {isEquipped ? (
-                      <span className="shipyard-badge equipped">Active Map</span>
-                    ) : isUnlocked ? (
-                      <button
-                        type="button"
-                        className="shipyard-btn equip"
-                        onClick={() => handleEquipItem('theme', t.id)}
-                      >
-                        Apply Theme
-                      </button>
-                    ) : (
-                      <button
-                        type="button"
-                        className={`shipyard-btn buy ${!canAfford ? 'disabled' : ''}`}
-                        onClick={() => handleUnlockItem('theme', t.id, t.cost)}
-                        disabled={!canAfford}
-                      >
-                        Buy: {t.cost} Gold
-                      </button>
-                    )}
-                  </div>
-                </div>
-              );
-            })}
-          </div>
-        </div>
-        <button className="pill" style={{ width: '100%' }} onClick={() => closeDialog(shipyardDialogRef)}>
-          Return to Deck
-        </button>
-      </dialog>
 
       {/* Word Tennis Rally Concluded Modal */}
       <dialog
