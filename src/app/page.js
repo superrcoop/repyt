@@ -163,7 +163,6 @@ export default function RepytGame() {
   const [shareToast, setShareToast] = useState('');
 
   // Dialog refs
-  const rulesDialogRef = useRef(null);
   const statsDialogRef = useRef(null);
   const strandedDialogRef = useRef(null);
   const victoryDialogRef = useRef(null);
@@ -1012,9 +1011,6 @@ export default function RepytGame() {
             </svg>
           </a>
 
-          <button onClick={() => openDialog(rulesDialogRef)} title="Repyt Articles & Rules">
-            Rules
-          </button>
 
           <button onClick={() => openDialog(statsDialogRef)} title="Navigator's Log">
             Log
@@ -1470,95 +1466,7 @@ export default function RepytGame() {
         <canvas id="shade" ref={shadeCanvasRef} width="64" height="36" />
       </main>
 
-      {/* Rules / Articles Modal */}
-      <dialog
-        ref={rulesDialogRef}
-        className="rules-dialog"
-        onClose={() => document.documentElement.classList.remove('has-modal')}
-        onClick={(e) => e.target === rulesDialogRef.current && closeDialog(rulesDialogRef)}
-      >
-        <div className="modal-header">
-          <div>
-            <h3 className="modal-title">Ship&apos;s Articles &amp; Rules</h3>
-            <div className="rules-modal-sub">Repyt Navigator&apos;s Codex</div>
-          </div>
-          <button className="icon-pill-btn" onClick={() => closeDialog(rulesDialogRef)} aria-label="Close modal">
-            <svg className="icon-svg" viewBox="0 0 24 24">
-              <line x1="18" y1="6" x2="6" y2="18" />
-              <line x1="6" y1="6" x2="18" y2="18" />
-            </svg>
-          </button>
-        </div>
-        <div className="modal-body rules-modal-body">
-          {/* Section 1: The Vault */}
-          <div className="rules-section-card">
-            <div className="rules-card-title">
-              <span className="rules-mode-badge">Game Mode 1</span>
-              <h4>The Repyt Vault (Proximity Climb)</h4>
-            </div>
-            <p className="rules-card-intro">
-              A secret daily concept is sealed in the golden vault. Repyt measures <strong>semantic vector proximity</strong> to guide your bearing:
-            </p>
 
-            <div className="rules-ranks-grid">
-              <div className="rules-rank-item solved">
-                <span className="rules-rank-tag solved">#1 SOLVED</span>
-                <span className="rules-rank-info">Exact concept match unlocks the vault!</span>
-              </div>
-              <div className="rules-rank-item hot">
-                <span className="rules-rank-tag hot">#2 – #300 HOT</span>
-                <span className="rules-rank-info">Burning hot bearing! Direct synonym or core attribute.</span>
-              </div>
-              <div className="rules-rank-item warm">
-                <span className="rules-rank-tag warm">#301 – #1,500 WARM</span>
-                <span className="rules-rank-info">Warm shallows. Shared semantic domain or category.</span>
-              </div>
-              <div className="rules-rank-item cool">
-                <span className="rules-rank-tag cool">#1,501 – #4,000 COOL</span>
-                <span className="rules-rank-info">Cool breeze. Tangential or loose association.</span>
-              </div>
-              <div className="rules-rank-item cold">
-                <span className="rules-rank-tag cold">#4,001+ COLD</span>
-                <span className="rules-rank-info">Freezing waters. Distant or completely unrelated heading.</span>
-              </div>
-            </div>
-
-            <div className="rules-lifeline-desc">
-              <strong>The 5-League Horizon Lifeline:</strong> You have <strong>5 leagues (5, 4, 3, 2, 1)</strong> before your galleon fades into the mist. Each incorrect guess pushes your ship 1 league further. Reach #1 before all 5 leagues expire!
-            </div>
-          </div>
-
-          {/* Section 2: Word Tennis */}
-          <div className="rules-section-card" style={{ marginTop: '12px' }}>
-            <div className="rules-card-title">
-              <span className="rules-mode-badge">Game Mode 2</span>
-              <h4>Repyt Tennis (Word Association Rally)</h4>
-            </div>
-            <p className="rules-card-intro">
-              High-speed associative rally against the AI pirate referee:
-            </p>
-            <ul className="rules-list">
-              <li><strong>15s Volley Clock:</strong> Return a creative associative word before time expires. Streaks speed up the timer!</li>
-              <li><strong>No Repeats:</strong> You cannot reuse words already played in the current rally.</li>
-              <li><strong>Streak Multipliers:</strong> Streaks at 5, 10, 15+ volleys earn combo multipliers (1.5x, 2.0x) and gold doubloons.</li>
-            </ul>
-          </div>
-
-          {/* Section 3: Speech & Pronunciation */}
-          <div className="rules-section-card" style={{ marginTop: '12px' }}>
-            <div className="rules-card-title">
-              <span className="rules-mode-badge">Feature</span>
-              <h4>Voice &amp; Pronunciation Practice</h4>
-            </div>
-            <p className="rules-card-intro">
-              Tap the <strong>Microphone</strong> icon to speak your guesses hands-free. Tap <strong>Pronounce</strong> on any word in your log to hear clear spoken pronunciation and earn <strong>+5 bonus doubloons</strong>!
-            </p>
-          </div>
-        </div>
-        <button className="pill" style={{ width: '100%' }} onClick={() => closeDialog(rulesDialogRef)}>
-          Understood, Captain!
-        </button>
-      </dialog>
 
       {/* Navigator&apos;s Log Modal */}
       <dialog
