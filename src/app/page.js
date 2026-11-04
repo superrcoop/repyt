@@ -163,6 +163,7 @@ export default function RepytGame() {
   const [shareToast, setShareToast] = useState('');
 
   // Dialog refs
+  const rulesDialogRef = useRef(null);
   const statsDialogRef = useRef(null);
   const strandedDialogRef = useRef(null);
   const victoryDialogRef = useRef(null);
@@ -290,11 +291,15 @@ export default function RepytGame() {
     });
   }, []);
 
-  // 3. Camera Transition Trigger
+  // 3. Camera Transition Trigger & Mode Switching Safety
   const goToScene = useCallback((target) => {
     const now = performance.now();
     const tr = transitionRef.current;
     if (tr.pTo === target) return;
+
+    if (target === 0) {
+      setTennisActive(false);
+    }
 
     tr.pFrom = tr.p;
     tr.pTo = target;
@@ -303,12 +308,20 @@ export default function RepytGame() {
     sound.shipBell();
   }, []);
 
+  const handleTabSwitch = useCallback((tab) => {
+    if (tab !== 'tennis') {
+      setTennisActive(false);
+    }
+    setActiveTab(tab);
+  }, []);
+
   const handleStartVoyage = useCallback(() => {
+    handleTabSwitch('vault');
     goToScene(1);
     setTimeout(() => {
       climbInputRef.current?.focus();
     }, 700);
-  }, [goToScene]);
+  }, [goToScene, handleTabSwitch]);
 
   // 4. 60FPS Render Loop with Dynamic Ship Horizon Lifeline & Overlap Prevention
   useEffect(() => {
@@ -610,27 +623,6 @@ export default function RepytGame() {
     }
   };
 
-  // Word Tennis Volley Countdown Timer
-  useEffect(() => {
-    if (!tennisActive || tennisEvaluating) return;
-
-    const interval = setInterval(() => {
-      setTennisTimer((prev) => {
-        if (prev <= 1) {
-          clearInterval(interval);
-          handleTennisTimeout();
-          return 0;
-        }
-        if (prev <= 4) {
-          sound.tick();
-        }
-        return prev - 1;
-      });
-    }, 1000);
-
-    return () => clearInterval(interval);
-  }, [tennisActive, tennisEvaluating]);
-
   const getInitialTimer = (captain) => {
     if (captain === 'barnaby') return 20;
     if (captain === 'blackbeard') return 10;
@@ -643,7 +635,7 @@ export default function RepytGame() {
     return 1.0;
   };
 
-  const handleTennisTimeout = () => {
+  const handleTennisTimeout = useCallback(() => {
     sound.gameOver();
     setTennisActive(false);
     const captainMult = getCaptainMultiplier(tennisCaptain);
@@ -661,7 +653,36 @@ export default function RepytGame() {
     });
     setTennisBanter('Time expired! The volley dropped into the sea.');
     openDialog(tennisGameOverDialogRef);
-  };
+  }, [tennisCaptain, tennisScore, tennisStreak, tennisHistory.length]);
+
+  // Word Tennis Volley Countdown Timer - strictly isolated to active tennis mode
+  useEffect(() => {
+    if (activeTab !== 'tennis' || sceneIndex !== 1 || !tennisActive || tennisEvaluating) {
+      return;
+    }
+
+    const interval = setInterval(() => {
+      setTennisTimer((prev) => {
+        if (prev <= 1) {
+          clearInterval(interval);
+          return 0;
+        }
+        if (prev <= 4) {
+          sound.tick();
+        }
+        return prev - 1;
+      });
+    }, 1000);
+
+    return () => clearInterval(interval);
+  }, [activeTab, sceneIndex, tennisActive, tennisEvaluating]);
+
+  // Safe timeout trigger when clock reaches 0 in Tennis mode
+  useEffect(() => {
+    if (activeTab === 'tennis' && sceneIndex === 1 && tennisActive && !tennisEvaluating && tennisTimer === 0) {
+      handleTennisTimeout();
+    }
+  }, [tennisTimer, activeTab, sceneIndex, tennisActive, tennisEvaluating, handleTennisTimeout]);
 
   const startTennisGame = () => {
     const starterWords = ['Ocean', 'Galaxy', 'Horizon', 'Phoenix', 'Tempest', 'Compass', 'Solar', 'Voyage'];
@@ -927,15 +948,47 @@ export default function RepytGame() {
     closeDialog(victoryDialogRef);
   };
 
-  // Dialog helpers with Modal Cursor Restoration
+  // Dialog helpers with coordinate backdrop check and safe modal restoration
   const openDialog = (ref) => {
-    ref.current?.showModal();
-    document.documentElement.classList.add('has-modal');
+    try {
+      if (ref?.current && !ref.current.open) {
+        ref.current.showModal();
+        document.documentElement.classList.add('has-modal');
+      }
+    } catch (err) {
+      console.warn('Dialog showModal error:', err);
+    }
   };
 
   const closeDialog = (ref) => {
-    ref.current?.close();
-    document.documentElement.classList.remove('has-modal');
+    try {
+      if (ref?.current && ref.current.open) {
+        ref.current.close();
+      }
+    } catch (err) {
+      console.warn('Dialog close error:', err);
+    } finally {
+      if (typeof document !== 'undefined') {
+        const anyOpen = document.querySelectorAll('dialog[open]').length > 0;
+        if (!anyOpen) {
+          document.documentElement.classList.remove('has-modal');
+        }
+      }
+    }
+  };
+
+  const handleDialogBackdropClick = (e, ref) => {
+    if (!ref?.current || e.target !== ref.current) return;
+    const rect = ref.current.getBoundingClientRect();
+    const isInside = (
+      rect.top <= e.clientY &&
+      e.clientY <= rect.top + rect.height &&
+      rect.left <= e.clientX &&
+      e.clientX <= rect.left + rect.width
+    );
+    if (!isInside) {
+      closeDialog(ref);
+    }
   };
 
   const toggleSound = () => {
@@ -980,7 +1033,7 @@ export default function RepytGame() {
 
           <a
             href="#vault"
-            onClick={(e) => { e.preventDefault(); setActiveTab('vault'); goToScene(1); }}
+            onClick={(e) => { e.preventDefault(); handleTabSwitch('vault'); goToScene(1); }}
             title="The Repyt Vault"
             className={sceneIndex === 1 && activeTab === 'vault' ? 'nav-link-active' : ''}
           >
@@ -995,11 +1048,8 @@ export default function RepytGame() {
             href="#tennis"
             onClick={(e) => {
               e.preventDefault();
-              setActiveTab('tennis');
+              handleTabSwitch('tennis');
               goToScene(1);
-              if (!tennisActive && tennisHistory.length === 0) {
-                startTennisGame();
-              }
             }}
             title="Word Tennis AI Rally"
             className={sceneIndex === 1 && activeTab === 'tennis' ? 'nav-link-active' : ''}
@@ -1011,6 +1061,9 @@ export default function RepytGame() {
             </svg>
           </a>
 
+          <button onClick={() => openDialog(rulesDialogRef)} title="Ship's Rules & Codex">
+            Rules
+          </button>
 
           <button onClick={() => openDialog(statsDialogRef)} title="Navigator's Log">
             Log
@@ -1105,7 +1158,7 @@ export default function RepytGame() {
                   <button
                     type="button"
                     className={`mode-tab-btn ${activeTab === 'vault' ? 'active' : ''}`}
-                    onClick={() => setActiveTab('vault')}
+                    onClick={() => handleTabSwitch('vault')}
                     title="Deduce the secret daily concept"
                   >
                     The Vault
@@ -1113,12 +1166,7 @@ export default function RepytGame() {
                   <button
                     type="button"
                     className={`mode-tab-btn ${activeTab === 'tennis' ? 'active' : ''}`}
-                    onClick={() => {
-                      setActiveTab('tennis');
-                      if (!tennisActive && tennisHistory.length === 0) {
-                        startTennisGame();
-                      }
-                    }}
+                    onClick={() => handleTabSwitch('tennis')}
                     title="Play speed word tennis vs AI"
                   >
                     Word Tennis
@@ -1468,11 +1516,118 @@ export default function RepytGame() {
 
 
 
+      {/* Ship's Articles & Rules Modal */}
+      <dialog
+        ref={rulesDialogRef}
+        className="rules-dialog"
+        onClose={() => {
+          if (typeof document !== 'undefined' && !document.querySelectorAll('dialog[open]').length) {
+            document.documentElement.classList.remove('has-modal');
+          }
+        }}
+        onCancel={(e) => {
+          e.preventDefault();
+          closeDialog(rulesDialogRef);
+        }}
+        onClick={(e) => handleDialogBackdropClick(e, rulesDialogRef)}
+      >
+        <div className="modal-header">
+          <div>
+            <h3 className="modal-title">Ship&apos;s Articles &amp; Rules</h3>
+            <div className="rules-modal-sub">Repyt Navigator&apos;s Codex</div>
+          </div>
+          <button className="icon-pill-btn" onClick={() => closeDialog(rulesDialogRef)} aria-label="Close modal">
+            <svg className="icon-svg" viewBox="0 0 24 24">
+              <line x1="18" y1="6" x2="6" y2="18" />
+              <line x1="6" y1="6" x2="18" y2="18" />
+            </svg>
+          </button>
+        </div>
+        <div className="modal-body rules-modal-body">
+          {/* Section 1: The Vault */}
+          <div className="rules-section-card">
+            <div className="rules-card-title">
+              <span className="rules-mode-badge">Game Mode 1</span>
+              <h4>The Repyt Vault (Proximity Climb)</h4>
+            </div>
+            <p className="rules-card-intro">
+              A secret daily concept is sealed in the golden vault. Repyt measures <strong>semantic vector proximity</strong> to guide your bearing:
+            </p>
+
+            <div className="rules-ranks-grid">
+              <div className="rules-rank-item solved">
+                <span className="rules-rank-tag solved">#1 SOLVED</span>
+                <span className="rules-rank-info">Exact concept match unlocks the vault!</span>
+              </div>
+              <div className="rules-rank-item hot">
+                <span className="rules-rank-tag hot">#2 – #300 HOT</span>
+                <span className="rules-rank-info">Burning hot bearing! Direct synonym or core attribute.</span>
+              </div>
+              <div className="rules-rank-item warm">
+                <span className="rules-rank-tag warm">#301 – #1,500 WARM</span>
+                <span className="rules-rank-info">Warm shallows. Shared semantic domain or category.</span>
+              </div>
+              <div className="rules-rank-item cool">
+                <span className="rules-rank-tag cool">#1,501 – #4,000 COOL</span>
+                <span className="rules-rank-info">Cool breeze. Tangential or loose association.</span>
+              </div>
+              <div className="rules-rank-item cold">
+                <span className="rules-rank-tag cold">#4,001+ COLD</span>
+                <span className="rules-rank-info">Freezing waters. Distant or completely unrelated heading.</span>
+              </div>
+            </div>
+
+            <div className="rules-lifeline-desc">
+              <strong>The 5-League Horizon Lifeline:</strong> You have <strong>5 leagues (5, 4, 3, 2, 1)</strong> before your galleon fades into the mist. Each incorrect guess pushes your ship 1 league further. Reach #1 before all 5 leagues expire!
+            </div>
+          </div>
+
+          {/* Section 2: Word Tennis */}
+          <div className="rules-section-card" style={{ marginTop: '12px' }}>
+            <div className="rules-card-title">
+              <span className="rules-mode-badge">Game Mode 2</span>
+              <h4>Repyt Tennis (Word Association Rally)</h4>
+            </div>
+            <p className="rules-card-intro">
+              High-speed associative rally against the AI pirate referee:
+            </p>
+            <ul className="rules-list">
+              <li><strong>Serve to Play:</strong> Select your opponent captain and click &ldquo;Serve!&rdquo; to begin the rally.</li>
+              <li><strong>Volley Clock:</strong> Return a creative associative word before time expires (10s – 20s based on captain).</li>
+              <li><strong>No Repeats:</strong> You cannot reuse words already played in the current rally.</li>
+              <li><strong>Streak Multipliers:</strong> Sustained rallies earn combo multipliers and bonus gold doubloons.</li>
+            </ul>
+          </div>
+
+          {/* Section 3: Speech & Pronunciation */}
+          <div className="rules-section-card" style={{ marginTop: '12px' }}>
+            <div className="rules-card-title">
+              <span className="rules-mode-badge">Feature</span>
+              <h4>Voice &amp; Pronunciation Practice</h4>
+            </div>
+            <p className="rules-card-intro">
+              Tap the <strong>Microphone</strong> icon to speak your guesses hands-free. Tap <strong>Pronounce</strong> on any word in your log to hear clear spoken pronunciation and earn <strong>+5 bonus doubloons</strong>!
+            </p>
+          </div>
+        </div>
+        <button className="pill" style={{ width: '100%' }} onClick={() => closeDialog(rulesDialogRef)}>
+          Understood, Captain!
+        </button>
+      </dialog>
+
       {/* Navigator&apos;s Log Modal */}
       <dialog
         ref={statsDialogRef}
-        onClose={() => document.documentElement.classList.remove('has-modal')}
-        onClick={(e) => e.target === statsDialogRef.current && closeDialog(statsDialogRef)}
+        onClose={() => {
+          if (typeof document !== 'undefined' && !document.querySelectorAll('dialog[open]').length) {
+            document.documentElement.classList.remove('has-modal');
+          }
+        }}
+        onCancel={(e) => {
+          e.preventDefault();
+          closeDialog(statsDialogRef);
+        }}
+        onClick={(e) => handleDialogBackdropClick(e, statsDialogRef)}
       >
         <div className="modal-header">
           <h3 className="modal-title">Navigator&apos;s Log</h3>
@@ -1564,8 +1719,16 @@ export default function RepytGame() {
       {/* Ship Stranded Modal */}
       <dialog
         ref={strandedDialogRef}
-        onClose={() => document.documentElement.classList.remove('has-modal')}
-        onClick={(e) => e.target === strandedDialogRef.current && closeDialog(strandedDialogRef)}
+        onClose={() => {
+          if (typeof document !== 'undefined' && !document.querySelectorAll('dialog[open]').length) {
+            document.documentElement.classList.remove('has-modal');
+          }
+        }}
+        onCancel={(e) => {
+          e.preventDefault();
+          closeDialog(strandedDialogRef);
+        }}
+        onClick={(e) => handleDialogBackdropClick(e, strandedDialogRef)}
       >
         <div className="modal-header">
           <h3 className="modal-title">Voyage Lost in Mist</h3>
@@ -1620,8 +1783,16 @@ export default function RepytGame() {
       {/* Victory / Vault Unlocked Modal */}
       <dialog
         ref={victoryDialogRef}
-        onClose={() => document.documentElement.classList.remove('has-modal')}
-        onClick={(e) => e.target === victoryDialogRef.current && closeDialog(victoryDialogRef)}
+        onClose={() => {
+          if (typeof document !== 'undefined' && !document.querySelectorAll('dialog[open]').length) {
+            document.documentElement.classList.remove('has-modal');
+          }
+        }}
+        onCancel={(e) => {
+          e.preventDefault();
+          closeDialog(victoryDialogRef);
+        }}
+        onClick={(e) => handleDialogBackdropClick(e, victoryDialogRef)}
       >
         <div className="modal-header">
           <h3 className="modal-title">Vault Unlocked!</h3>
@@ -1671,13 +1842,19 @@ export default function RepytGame() {
         </button>
       </dialog>
 
-
-
       {/* Word Tennis Rally Concluded Modal */}
       <dialog
         ref={tennisGameOverDialogRef}
-        onClose={() => document.documentElement.classList.remove('has-modal')}
-        onClick={(e) => e.target === tennisGameOverDialogRef.current && closeDialog(tennisGameOverDialogRef)}
+        onClose={() => {
+          if (typeof document !== 'undefined' && !document.querySelectorAll('dialog[open]').length) {
+            document.documentElement.classList.remove('has-modal');
+          }
+        }}
+        onCancel={(e) => {
+          e.preventDefault();
+          closeDialog(tennisGameOverDialogRef);
+        }}
+        onClick={(e) => handleDialogBackdropClick(e, tennisGameOverDialogRef)}
       >
         <div className="modal-header">
           <h3 className="modal-title">Rally Concluded!</h3>
@@ -1709,16 +1886,25 @@ export default function RepytGame() {
             </div>
           </div>
         </div>
-        <button
-          className="pill"
-          style={{ width: '100%' }}
-          onClick={() => {
-            closeDialog(tennisGameOverDialogRef);
-            startTennisGame();
-          }}
-        >
-          Serve Next Rally!
-        </button>
+        <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+          <button
+            className="pill"
+            style={{ width: '100%' }}
+            onClick={() => {
+              closeDialog(tennisGameOverDialogRef);
+              startTennisGame();
+            }}
+          >
+            Serve Next Rally!
+          </button>
+          <button
+            className="pill"
+            style={{ width: '100%', background: '#eae4d3', color: 'var(--ink)' }}
+            onClick={() => closeDialog(tennisGameOverDialogRef)}
+          >
+            Return to Court
+          </button>
+        </div>
       </dialog>
 
       {/* Share Toast Banner */}
