@@ -18,6 +18,15 @@ import {
   getPirateRank,
   getPreferences,
   savePreferences,
+  SHIPYARD_CATALOG,
+  getShipyardData,
+  unlockShipyardItem,
+  equipShipyardItem,
+  getDailyQuests,
+  updateQuestProgress,
+  claimQuestReward,
+  getClientProximityCache,
+  setClientProximityCache,
 } from '../lib/storage';
 
 // Transparent PNG assets
@@ -131,11 +140,44 @@ export default function RepytGame() {
     incorrectRef.current = incorrectGuesses;
   }, [incorrectGuesses]);
 
+  // Active Game Mode: 'vault' | 'tennis'
+  const [activeTab, setActiveTab] = useState('vault');
+
+  // Word Tennis (Repyt Chain) Game State
+  const [tennisActive, setTennisActive] = useState(false);
+  const [tennisWord, setTennisWord] = useState('Ocean');
+  const [tennisInput, setTennisInput] = useState('');
+  const [tennisTimer, setTennisTimer] = useState(15);
+  const [tennisStreak, setTennisStreak] = useState(0);
+  const [tennisScore, setTennisScore] = useState(0);
+  const [tennisEvaluating, setTennisEvaluating] = useState(false);
+  const [tennisBanter, setTennisBanter] = useState(
+    'AI serves the opening word. Return an associative word within 15 seconds!'
+  );
+  const [tennisHistory, setTennisHistory] = useState([]);
+  const [tennisResult, setTennisResult] = useState(null);
+  const tennisInputRef = useRef(null);
+  const tennisGameOverDialogRef = useRef(null);
+
+  // Selectable AI Captains in Word Tennis: 'barnaby' | 'siren' | 'blackbeard'
+  const [tennisCaptain, setTennisCaptain] = useState('siren');
+
+  // The Shipyard & Daily Quests
+  const [shipyard, setShipyard] = useState({
+    equippedShip: 'sloop',
+    unlockedShips: ['sloop'],
+    equippedTheme: 'sand',
+    unlockedThemes: ['sand'],
+  });
+  const [dailyQuests, setDailyQuests] = useState([]);
+  const [shareToast, setShareToast] = useState('');
+
   // Dialog refs
   const rulesDialogRef = useRef(null);
   const statsDialogRef = useRef(null);
   const strandedDialogRef = useRef(null);
   const victoryDialogRef = useRef(null);
+  const shipyardDialogRef = useRef(null);
   const climbInputRef = useRef(null);
 
   // Canvas & Scene DOM refs
@@ -184,6 +226,17 @@ export default function RepytGame() {
     setSoundMuted(!prefs.sound);
     sound.setMuted(!prefs.sound);
     setStats(getPlayerStats());
+
+    // Load Shipyard & Equipped Theme
+    const shipyardData = getShipyardData();
+    setShipyard(shipyardData);
+    const themeObj = SHIPYARD_CATALOG.themes.find((t) => t.id === shipyardData.equippedTheme);
+    if (themeObj && typeof document !== 'undefined') {
+      document.documentElement.style.setProperty('--paper', themeObj.bg);
+    }
+
+    // Load Daily Logbook Quests
+    setDailyQuests(getDailyQuests());
 
     // Fetch daily clue from API
     fetch('/api/semantic-climb')
@@ -568,8 +621,169 @@ export default function RepytGame() {
     setSpeechFeedback(`Heard: "${spokenWord}"`);
     setTimeout(() => setSpeechFeedback(''), 3000);
 
-    setClimbInput(spokenWord);
-    executeClimbGuess(spokenWord);
+    if (activeTab === 'tennis') {
+      setTennisInput(spokenWord);
+      executeTennisVolley(spokenWord);
+    } else {
+      setClimbInput(spokenWord);
+      executeClimbGuess(spokenWord);
+    }
+  };
+
+  // Word Tennis Volley Countdown Timer
+  useEffect(() => {
+    if (!tennisActive || tennisEvaluating) return;
+
+    const interval = setInterval(() => {
+      setTennisTimer((prev) => {
+        if (prev <= 1) {
+          clearInterval(interval);
+          handleTennisTimeout();
+          return 0;
+        }
+        if (prev <= 4) {
+          sound.tick();
+        }
+        return prev - 1;
+      });
+    }, 1000);
+
+    return () => clearInterval(interval);
+  }, [tennisActive, tennisEvaluating]);
+
+  const getInitialTimer = (captain) => {
+    if (captain === 'barnaby') return 20;
+    if (captain === 'blackbeard') return 10;
+    return 15;
+  };
+
+  const getCaptainMultiplier = (captain) => {
+    if (captain === 'blackbeard') return 2.0;
+    if (captain === 'siren') return 1.5;
+    return 1.0;
+  };
+
+  const handleTennisTimeout = () => {
+    sound.gameOver();
+    setTennisActive(false);
+    const captainMult = getCaptainMultiplier(tennisCaptain);
+    const earnedDoubloons = Math.floor((tennisScore / 10) * captainMult);
+    const updated = recordChainGame(tennisScore, tennisStreak, tennisHistory.length, earnedDoubloons);
+    if (updated) setStats(updated);
+
+    const clockName = tennisCaptain === 'blackbeard' ? '10' : tennisCaptain === 'barnaby' ? '20' : '15';
+    setTennisResult({
+      score: tennisScore,
+      streak: tennisStreak,
+      wordsCount: tennisHistory.length,
+      earnedDoubloons,
+      reason: `${clockName}-second volley clock expired!`
+    });
+    setTennisBanter('Time expired! The volley dropped into the sea.');
+    openDialog(tennisGameOverDialogRef);
+  };
+
+  const startTennisGame = () => {
+    const starterWords = ['Ocean', 'Galaxy', 'Horizon', 'Phoenix', 'Tempest', 'Compass', 'Solar', 'Voyage'];
+    const initial = starterWords[Math.floor(Math.random() * starterWords.length)];
+    const initTimer = getInitialTimer(tennisCaptain);
+    setTennisWord(initial);
+    setTennisStreak(0);
+    setTennisScore(0);
+    setTennisHistory([]);
+    setTennisTimer(initTimer);
+    setTennisActive(true);
+    setTennisBanter(`Opponent serves "${initial}"! Return an associative word quickly!`);
+    sound.shipBell();
+    setTimeout(() => {
+      tennisInputRef.current?.focus();
+    }, 200);
+  };
+
+  const executeTennisVolley = async (wordToPlay) => {
+    const play = (wordToPlay || tennisInput || '').trim();
+    if (!play || !tennisActive || tennisEvaluating) return;
+
+    setTennisInput('');
+    setTennisEvaluating(true);
+
+    try {
+      const res = await fetch('/api/word-chain', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          currentWord: tennisWord,
+          playerWord: play,
+          history: tennisHistory.flatMap((h) => [h.playerWord, h.counterWord]),
+          theme: 'nautical',
+          captain: tennisCaptain,
+        }),
+      });
+
+      const data = await res.json();
+
+      if (data.valid) {
+        const nextStreak = tennisStreak + 1;
+        const multiplier = 1 + Math.floor(tennisStreak / 5) * 0.5;
+        const roundScore = Math.round((data.score || 50) * multiplier);
+        const nextScore = tennisScore + roundScore;
+
+        sound.correct(nextStreak);
+        if (nextStreak % 5 === 0) {
+          sound.streak();
+          triggerConfetti({ particleCount: 80, spread: 70, origin: { y: 0.6 } });
+        }
+
+        // Daily Quest: Rally Commander (5+ volleys)
+        if (nextStreak >= 5) {
+          const updatedQ = updateQuestProgress('quest_tennis', 1);
+          setDailyQuests(updatedQ);
+        }
+
+        setTennisStreak(nextStreak);
+        setTennisScore(nextScore);
+        setTennisWord(data.counterWord || 'Pulse');
+        setTennisBanter(data.banter || 'Sharp return!');
+        setTennisHistory((prev) => [
+          {
+            servedWord: tennisWord,
+            playerWord: play,
+            counterWord: data.counterWord,
+            score: roundScore,
+            banter: data.banter,
+          },
+          ...prev,
+        ]);
+
+        const baseClock = getInitialTimer(tennisCaptain);
+        const minClock = tennisCaptain === 'blackbeard' ? 6 : tennisCaptain === 'barnaby' ? 12 : 9;
+        const nextTimer = Math.max(minClock, baseClock - Math.floor(nextStreak / 4));
+        setTennisTimer(nextTimer);
+      } else {
+        sound.error();
+        setTennisActive(false);
+        const captainMult = getCaptainMultiplier(tennisCaptain);
+        const earnedDoubloons = Math.floor((tennisScore / 10) * captainMult);
+        const updated = recordChainGame(tennisScore, tennisStreak, tennisHistory.length, earnedDoubloons);
+        if (updated) setStats(updated);
+
+        setTennisResult({
+          score: tennisScore,
+          streak: tennisStreak,
+          wordsCount: tennisHistory.length,
+          earnedDoubloons,
+          reason: data.reason || 'Invalid word association or repeat!'
+        });
+        setTennisBanter(data.banter || 'Foul return! Rally ended.');
+        openDialog(tennisGameOverDialogRef);
+      }
+    } catch (err) {
+      console.error(err);
+      sound.error();
+      setTennisBanter('The referee faltered. Try your return once more.');
+    } finally {
+      setTennisEvaluating(false);
+    }
   };
 
   // 6. Speech Pronunciation Teaching Action
@@ -577,10 +791,64 @@ export default function RepytGame() {
     sound.speakWord(word, () => {
       const updated = recordSpeechPractice();
       if (updated) setStats(updated);
+      const updatedQ = updateQuestProgress('quest_speech', 1);
+      setDailyQuests(updatedQ);
     });
   };
 
-  // 7. Repyt Semantic Proximity Engine with Ship Horizon Lifeline
+  // 7. Repyt Semantic Proximity Engine with Ship Horizon Lifeline & Zero-Latency Cache
+  const applyClimbResult = (data, guess) => {
+    if (data.details) {
+      setDailyClue(data.details);
+    }
+
+    if (data.solved) {
+      sound.streak();
+      triggerConfetti({ particleCount: 120, spread: 100, origin: { y: 0.5 } });
+      setClimbSolved(true);
+      setCaptainBanter(`Vault unlocked! The mystery concept was indeed "${guess}"!`);
+
+      const updated = recordChainGame(100, 1, climbGuesses.length + 1, 150);
+      if (updated) setStats(updated);
+
+      // Quest: Master Navigator (3+ leagues remaining)
+      if (MAX_LEAGUES - incorrectGuesses >= 3) {
+        const updatedQ = updateQuestProgress('quest_vault', 1);
+        setDailyQuests(updatedQ);
+      }
+
+      setClimbGuesses((prev) => [data, ...prev].sort((a, b) => a.rank - b.rank));
+
+      setTimeout(() => {
+        openDialog(victoryDialogRef);
+      }, 800);
+    } else {
+      const nextMistakes = incorrectGuesses + 1;
+      setIncorrectGuesses(nextMistakes);
+
+      if (data.rank <= 300) {
+        sound.correct();
+        setCaptainBanter(`Burning hot bearing! You're extremely close to the vault.`);
+      } else if (data.rank <= 1500) {
+        sound.correct();
+        setCaptainBanter(`Warm shallows. Keep exploring along this train of thought.`);
+      } else {
+        sound.error();
+        setCaptainBanter(`Cold waters! Your ship drifts further toward the horizon.`);
+      }
+
+      setClimbGuesses((prev) => [data, ...prev].sort((a, b) => a.rank - b.rank));
+
+      if (nextMistakes >= MAX_LEAGUES) {
+        sound.gameOver();
+        setCaptainBanter('The galleon has faded into the mist. Voyage stranded!');
+        setTimeout(() => {
+          openDialog(strandedDialogRef);
+        }, 1200);
+      }
+    }
+  };
+
   const executeClimbGuess = async (guessWord) => {
     const guess = (guessWord || '').trim();
     if (!guess || climbEvaluating || climbSolved || incorrectGuesses >= MAX_LEAGUES) return;
@@ -593,6 +861,15 @@ export default function RepytGame() {
     }
 
     setClimbInput('');
+
+    // Zero-Latency Local Cache Check
+    const targetWord = dailyClue.category ? (dailyClue.targetWord || dailyClue.category) : 'Daily';
+    const cached = getClientProximityCache(targetWord, guess);
+    if (cached) {
+      applyClimbResult(cached, guess);
+      return;
+    }
+
     setClimbEvaluating(true);
 
     try {
@@ -603,59 +880,78 @@ export default function RepytGame() {
       });
 
       const data = await res.json();
-
-      if (data.details) {
-        setDailyClue(data.details);
-      }
-
-      if (data.solved) {
-        // Vault Unlocked!
-        sound.streak();
-        triggerConfetti({ particleCount: 120, spread: 100, origin: { y: 0.5 } });
-        setClimbSolved(true);
-        setCaptainBanter(`Vault unlocked! The mystery concept was indeed "${guess}"!`);
-
-        const updated = recordChainGame(100, 1, climbGuesses.length + 1, 150);
-        if (updated) setStats(updated);
-
-        setClimbGuesses((prev) => [data, ...prev].sort((a, b) => a.rank - b.rank));
-
-        setTimeout(() => {
-          openDialog(victoryDialogRef);
-        }, 800);
-      } else {
-        // Incorrect guess: ship drifts 1 league further into the horizon
-        const nextMistakes = incorrectGuesses + 1;
-        setIncorrectGuesses(nextMistakes);
-
-        if (data.rank <= 300) {
-          sound.correct();
-          setCaptainBanter(`Burning hot bearing! You're extremely close to the vault.`);
-        } else if (data.rank <= 1500) {
-          sound.correct();
-          setCaptainBanter(`Warm shallows. Keep exploring along this train of thought.`);
-        } else {
-          sound.error();
-          setCaptainBanter(`Cold waters! Your ship drifts further toward the horizon.`);
-        }
-
-        setClimbGuesses((prev) => [data, ...prev].sort((a, b) => a.rank - b.rank));
-
-        // Check if ship is stranded
-        if (nextMistakes >= MAX_LEAGUES) {
-          sound.gameOver();
-          setCaptainBanter('The galleon has faded into the mist. Voyage stranded!');
-          setTimeout(() => {
-            openDialog(strandedDialogRef);
-          }, 1200);
-        }
-      }
+      setClientProximityCache(targetWord, guess, data);
+      applyClimbResult(data, guess);
     } catch (err) {
       console.error(err);
       sound.error();
       setCaptainBanter('The compass faltered. Try your guess once more.');
     } finally {
       setClimbEvaluating(false);
+    }
+  };
+
+  // Shipyard & Daily Quests Action Handlers
+  const handleUnlockItem = (type, itemId, cost) => {
+    const res = unlockShipyardItem(type, itemId, cost);
+    if (res.success) {
+      setShipyard(res.shipyard);
+      setStats(res.stats);
+      sound.streak();
+      triggerConfetti({ particleCount: 70, spread: 60 });
+      if (type === 'theme') {
+        const themeObj = SHIPYARD_CATALOG.themes.find((t) => t.id === itemId);
+        if (themeObj && typeof document !== 'undefined') {
+          document.documentElement.style.setProperty('--paper', themeObj.bg);
+        }
+      }
+    } else {
+      sound.error();
+      alert(res.reason || 'Could not unlock item');
+    }
+  };
+
+  const handleEquipItem = (type, itemId) => {
+    const updated = equipShipyardItem(type, itemId);
+    setShipyard(updated);
+    if (type === 'theme') {
+      const themeObj = SHIPYARD_CATALOG.themes.find((t) => t.id === itemId);
+      if (themeObj && typeof document !== 'undefined') {
+        document.documentElement.style.setProperty('--paper', themeObj.bg);
+      }
+    }
+  };
+
+  const handleClaimQuest = (questId) => {
+    const res = claimQuestReward(questId);
+    if (res) {
+      setDailyQuests(res.quests);
+      setStats(res.stats);
+      sound.streak();
+      triggerConfetti({ particleCount: 60, spread: 60 });
+    }
+  };
+
+  const shareVoyageResults = () => {
+    const dateStr = new Date().toISOString().slice(0, 10);
+    const solvedText = climbSolved ? 'Vault Unlocked [Solved]' : 'Stranded in Mist [Unsolved]';
+    const remaining = MAX_LEAGUES - incorrectGuesses;
+    const bestSim = climbGuesses.length > 0 ? Math.max(...climbGuesses.map((g) => g.similarity || 0)) : 0;
+
+    const rankGrid = climbGuesses.slice(0, 8).map((g) => {
+      if (g.rank === 1) return '[#1]';
+      if (g.rank <= 300) return '[HOT]';
+      if (g.rank <= 1500) return '[WARM]';
+      if (g.rank <= 4000) return '[COOL]';
+      return '[COLD]';
+    }).join(' ');
+
+    const text = `Repyt Vault #${dateStr}\n${solvedText}\nLeagues Remaining: ${remaining}/${MAX_LEAGUES}\nGuesses: ${climbGuesses.length} | Best Proximity: ${bestSim}%\n${rankGrid}\n\nPlay at https://repyt.app`;
+
+    if (typeof navigator !== 'undefined' && navigator.clipboard) {
+      navigator.clipboard.writeText(text);
+      setShareToast('Voyage copied to clipboard!');
+      setTimeout(() => setShareToast(''), 3000);
     }
   };
 
@@ -733,8 +1029,9 @@ export default function RepytGame() {
 
           <a
             href="#vault"
-            onClick={(e) => { e.preventDefault(); goToScene(1); }}
+            onClick={(e) => { e.preventDefault(); setActiveTab('vault'); goToScene(1); }}
             title="The Repyt Vault"
+            className={sceneIndex === 1 && activeTab === 'vault' ? 'nav-link-active' : ''}
           >
             Vault
             <svg viewBox="0 0 17 21" fill="none" stroke="currentColor" strokeWidth="2.6" strokeLinecap="round">
@@ -743,8 +1040,32 @@ export default function RepytGame() {
             </svg>
           </a>
 
+          <a
+            href="#tennis"
+            onClick={(e) => {
+              e.preventDefault();
+              setActiveTab('tennis');
+              goToScene(1);
+              if (!tennisActive && tennisHistory.length === 0) {
+                startTennisGame();
+              }
+            }}
+            title="Word Tennis AI Rally"
+            className={sceneIndex === 1 && activeTab === 'tennis' ? 'nav-link-active' : ''}
+          >
+            Tennis
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round">
+              <circle cx="12" cy="12" r="10" />
+              <path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z" />
+            </svg>
+          </a>
+
           <button onClick={() => openDialog(rulesDialogRef)} title="Repyt Articles & Rules">
             Rules
+          </button>
+
+          <button onClick={() => openDialog(shipyardDialogRef)} title="The Shipyard (Fleet Vessels & Map Themes)">
+            Shipyard
           </button>
 
           <button onClick={() => openDialog(statsDialogRef)} title="Navigator's Log">
@@ -767,10 +1088,7 @@ export default function RepytGame() {
           </button>
 
           <div className="nav-badge" title="Your Pirate Gold">
-            <svg className="icon-svg" style={{ width: '13px', height: '13px' }} viewBox="0 0 24 24">
-              <circle cx="12" cy="12" r="10" />
-              <circle cx="12" cy="12" r="4" />
-            </svg>
+            <span>{SHIPYARD_CATALOG.ships.find((s) => s.id === shipyard.equippedShip)?.name || 'Vessel'}</span>
             <span>{stats.doubloons} Gold</span>
             <span style={{ opacity: 0.6 }}>· {pirateRank.title}</span>
           </div>
@@ -823,186 +1141,380 @@ export default function RepytGame() {
           <div className="spr" id="bushL" ref={bushLRef} />
           <div className="spr" id="bushR" ref={bushRRef} />
 
-          {/* Scene 1: The Repyt Vault Interaction (Docked Bottom Sticky on Mobile) */}
+          {/* Scene 1: The Repyt Interaction Arena (Vault & Word Tennis) */}
           <div className="t2" id="t2" ref={t2Ref}>
-            {/* Vault Header with title & desktop/mobile Back to Sea button */}
+            {/* Vault Header with mode tabs & Back to Sea button */}
             <div className="vault-header">
               <div className="vault-title-wrap">
-                <h2 id="h2" ref={h2Ref}>The Repyt<br />Vault</h2>
+                <h2 id="h2" ref={h2Ref}>
+                  {activeTab === 'tennis' ? <>Repyt<br />Tennis</> : <>The Repyt<br />Vault</>}
+                </h2>
                 <p id="p2" ref={p2Ref}>
-                  Deduce today&apos;s secret concept to open the golden vault.
+                  {activeTab === 'tennis'
+                    ? "High-speed associative word rally against the AI. Keep the volley alive!"
+                    : "Deduce today's secret concept to open the golden vault."}
                 </p>
               </div>
-              <button
-                type="button"
-                className="pill back-btn"
-                onClick={() => goToScene(0)}
-                title="Return to ship voyage"
-              >
-                <svg className="icon-svg" style={{ width: '13px', height: '13px', marginRight: '5px' }} viewBox="0 0 24 24">
-                  <path d="M19 12H5M12 19l-7-7 7-7" />
-                </svg>
-                Back to Sea
-              </button>
-            </div>
 
-            {/* 1. Primary Question & Controls Card */}
-            <div className="question-card">
-              {/* Daily Clue & Riddle */}
-              <div className="daily-clue-header">
-                <span className="clue-tag">Realm: {dailyClue.category}</span>
-                <span className="clue-badge">DAILY CLUE</span>
-              </div>
-              <div className="clue-text">&ldquo;{dailyClue.hint}&rdquo;</div>
-              <div className="how-to-play-hint">
-                Repyt measures semantic proximity: <strong>HOT</strong> (#2–300) = very close; <strong>COLD</strong> (#1501+) = far away. Reach #1 before your 5 leagues expire!
-              </div>
-
-              {/* Ship Horizon Distance Lifeline Gauge */}
-              <div className="lifeline-gauge">
-                <div className="gauge-header">
-                  <span className="gauge-title">Ship Distance to Horizon</span>
-                  <span className={`gauge-status ${remainingLeagues <= 1 ? 'danger' : ''}`}>
-                    {remainingLeagues === 0 ? 'Ship Lost in Mist' : `${remainingLeagues} Leagues Remaining`}
-                  </span>
+              <div className="vault-nav-actions">
+                {/* Game Mode Selector Tabs */}
+                <div className="mode-toggle-group">
+                  <button
+                    type="button"
+                    className={`mode-tab-btn ${activeTab === 'vault' ? 'active' : ''}`}
+                    onClick={() => setActiveTab('vault')}
+                    title="Deduce the secret daily concept"
+                  >
+                    The Vault
+                  </button>
+                  <button
+                    type="button"
+                    className={`mode-tab-btn ${activeTab === 'tennis' ? 'active' : ''}`}
+                    onClick={() => {
+                      setActiveTab('tennis');
+                      if (!tennisActive && tennisHistory.length === 0) {
+                        startTennisGame();
+                      }
+                    }}
+                    title="Play speed word tennis vs AI"
+                  >
+                    Word Tennis
+                  </button>
                 </div>
-                <div className="gauge-track">
-                  {[0, 1, 2, 3, 4].map((index) => {
-                    const isLost = index < incorrectGuesses;
-                    const isCritical = remainingLeagues <= 2;
-                    return (
-                      <div
-                        key={index}
-                        className={`gauge-knot ${isLost ? 'lost' : isCritical ? 'warning' : 'safe'}`}
-                        title={`League ${index + 1}`}
-                      />
-                    );
-                  })}
-                </div>
-              </div>
-
-              {/* Input Form with Hands-Free Speech Microphone & Dig Button */}
-              <form onSubmit={handleClimbSubmit} className="input-row">
-                <input
-                  ref={climbInputRef}
-                  className="ink-input"
-                  type="text"
-                  value={climbInput}
-                  onChange={(e) => setClimbInput(e.target.value)}
-                  placeholder={
-                    climbSolved
-                      ? 'Vault unlocked!'
-                      : remainingLeagues === 0
-                      ? 'Ship stranded in mist'
-                      : isRecording
-                      ? 'Listening to speech...'
-                      : 'Type any word...'
-                  }
-                  disabled={climbEvaluating || climbSolved || remainingLeagues === 0}
-                  autoComplete="off"
-                />
 
                 <button
                   type="button"
-                  className={`icon-pill-btn ${isRecording ? 'recording' : ''}`}
-                  onClick={toggleListening}
-                  title={isRecording ? 'Listening... click to stop' : 'Speak your guess hands-free'}
-                  aria-label="Microphone"
-                  disabled={climbSolved || remainingLeagues === 0}
+                  className="pill back-btn"
+                  onClick={() => goToScene(0)}
+                  title="Return to ship voyage"
                 >
-                  <svg className="icon-svg" viewBox="0 0 24 24">
-                    <path d="M12 1a3 3 0 0 0-3 3v8a3 3 0 0 0 6 0V4a3 3 0 0 0-3-3z" />
-                    <path d="M19 10v2a7 7 0 0 1-14 0v-2" />
-                    <line x1="12" y1="19" x2="12" y2="23" />
-                    <line x1="8" y1="23" x2="16" y2="23" />
+                  <svg className="icon-svg" style={{ width: '13px', height: '13px', marginRight: '5px' }} viewBox="0 0 24 24">
+                    <path d="M19 12H5M12 19l-7-7 7-7" />
                   </svg>
+                  Back to Sea
                 </button>
+              </div>
+            </div>
 
-                <button
-                  type="submit"
-                  className="pill dig-btn"
-                  disabled={climbEvaluating || climbSolved || remainingLeagues === 0}
-                >
-                  Dig
-                </button>
-              </form>
+            {/* TAB 1: REPYT WORD TENNIS ARENA */}
+            {activeTab === 'tennis' ? (
+              <div className="question-card tennis-arena-card">
+                <div className="tennis-arena-header">
+                  <div className="tennis-status-wrap">
+                    <span className="clue-tag">Word Tennis Rally</span>
+                    <span className="tennis-streak-badge">
+                      Streak: {tennisStreak} (x{(1 + Math.floor(tennisStreak / 5) * 0.5).toFixed(1)})
+                    </span>
+                  </div>
+                  <div className="tennis-hud-stats">
+                    <span className={`tennis-timer-pill ${tennisTimer <= 4 ? 'urgent' : tennisTimer <= 8 ? 'warning' : ''}`}>
+                      {tennisTimer}s
+                    </span>
+                    <span className="tennis-score-badge">
+                      {tennisScore} Pts
+                    </span>
+                  </div>
+                </div>
 
-              {/* Starter Bearing Suggestions */}
-              {climbGuesses.length === 0 && !climbSolved && (
-                <div className="starter-chips-row">
-                  <span className="starter-label">Try a starting word:</span>
-                  {(dailyClue.suggestions || ['Beacon', 'Tower', 'Ocean']).map((sugg) => (
+                {/* Selectable AI Opponent Captains */}
+                <div className="tennis-captain-selector">
+                  <span className="captain-select-label">Opponent:</span>
+                  {[
+                    { id: 'barnaby', name: 'Old Barnaby', tier: 'Novice', clock: '20s', mult: '1.0x' },
+                    { id: 'siren', name: 'The Siren', tier: 'Mystic', clock: '15s', mult: '1.5x' },
+                    { id: 'blackbeard', name: 'Blackbeard', tier: 'Veteran', clock: '10s', mult: '2.0x' },
+                  ].map((c) => (
                     <button
-                      key={sugg}
+                      key={c.id}
                       type="button"
-                      className="starter-chip"
-                      onClick={() => handleQuickGuess(sugg)}
-                      disabled={climbEvaluating || remainingLeagues === 0}
+                      className={`captain-chip ${tennisCaptain === c.id ? 'active' : ''}`}
+                      onClick={() => {
+                        if (!tennisActive) {
+                          setTennisCaptain(c.id);
+                          setTennisTimer(getInitialTimer(c.id));
+                        }
+                      }}
+                      disabled={tennisActive}
+                      title={`${c.name} (${c.clock} Clock, ${c.mult} Gold Bounty)`}
                     >
-                      {sugg}
+                      <span className="captain-chip-icon">[{c.tier}]</span>
+                      <span className="captain-chip-name">{c.name}</span>
+                      <span className="captain-chip-bounty">{c.clock} · {c.mult}</span>
                     </button>
                   ))}
                 </div>
-              )}
 
-              {/* Helmsman Banter Scroll */}
-              <div className="captain-scroll">
-                <span>&ldquo;{captainBanter}&rdquo;</span>
-              </div>
-
-              {speechFeedback && (
-                <div className="speech-hint">
-                  {speechFeedback}
+                {/* AI Served Active Word */}
+                <div className="tennis-served-section">
+                  <div className="tennis-served-label">AI Served Word:</div>
+                  <div className="tennis-served-word">{tennisWord}</div>
+                  <div className="tennis-instruction">
+                    Return a creative associative word within <strong>{tennisTimer} seconds</strong>! No duplicates in this rally.
+                  </div>
                 </div>
-              )}
-            </div>
 
-            {/* 2. Answers Container - Rendered distinctly BELOW the question & input! */}
-            {climbGuesses.length > 0 && (
-              <div className="answers-container">
-                <div className="answers-header">
-                  <span className="answers-title">Cast Bearings ({climbGuesses.length})</span>
-                  <span className="answers-subtitle">Closest concepts on top</span>
+                {/* Volley Return Form */}
+                <form
+                  onSubmit={(e) => {
+                    e.preventDefault();
+                    executeTennisVolley(tennisInput);
+                  }}
+                  className="input-row"
+                >
+                  <input
+                    ref={tennisInputRef}
+                    className="ink-input"
+                    type="text"
+                    value={tennisInput}
+                    onChange={(e) => setTennisInput(e.target.value)}
+                    placeholder={
+                      !tennisActive
+                        ? 'Rally idle... click Serve to play!'
+                        : isRecording
+                        ? 'Listening to speech...'
+                        : 'Type your associative return word...'
+                    }
+                    disabled={!tennisActive || tennisEvaluating}
+                    autoComplete="off"
+                  />
+
+                  <button
+                    type="button"
+                    className={`icon-pill-btn ${isRecording ? 'recording' : ''}`}
+                    onClick={toggleListening}
+                    title={isRecording ? 'Listening... click to stop' : 'Speak return word hands-free'}
+                    aria-label="Microphone"
+                    disabled={!tennisActive}
+                  >
+                    <svg className="icon-svg" viewBox="0 0 24 24">
+                      <path d="M12 1a3 3 0 0 0-3 3v8a3 3 0 0 0 6 0V4a3 3 0 0 0-3-3z" />
+                      <path d="M19 10v2a7 7 0 0 1-14 0v-2" />
+                      <line x1="12" y1="19" x2="12" y2="23" />
+                      <line x1="8" y1="23" x2="16" y2="23" />
+                    </svg>
+                  </button>
+
+                  {tennisActive ? (
+                    <button
+                      type="submit"
+                      className="pill dig-btn tennis-hit-btn"
+                      disabled={tennisEvaluating || !tennisInput.trim()}
+                    >
+                      {tennisEvaluating ? 'Judging...' : 'Hit!'}
+                    </button>
+                  ) : (
+                    <button
+                      type="button"
+                      className="pill dig-btn tennis-hit-btn"
+                      onClick={startTennisGame}
+                    >
+                      Serve!
+                    </button>
+                  )}
+                </form>
+
+                {/* Referee Banter Scroll */}
+                <div className="captain-scroll">
+                  <span>&ldquo;{tennisBanter}&rdquo;</span>
                 </div>
-                <div className="answers-list" ref={feedRef}>
-                  {climbGuesses.map((g, i) => {
-                    const statusClass = g.solved ? 'solved' : g.rank <= 300 ? 'hot' : g.rank <= 1500 ? 'warm' : 'cold';
-                    const statusLabel = g.solved ? 'SOLVED' : g.rank <= 300 ? 'HOT' : g.rank <= 1500 ? 'WARM' : 'COLD';
-                    return (
-                      <div key={i} className={`answer-card ${statusClass}`}>
-                        <div className="answer-card-header">
-                          <span className={`rank-badge ${statusClass}`}>{statusLabel}</span>
-                          <span className="answer-word">{g.guess}</span>
-                          <span className="answer-rank">#{g.rank}</span>
+
+                {speechFeedback && (
+                  <div className="speech-hint">{speechFeedback}</div>
+                )}
+
+                {/* Volley History Feed */}
+                {tennisHistory.length > 0 && (
+                  <div className="tennis-history-feed">
+                    <div className="tennis-history-header">
+                      <span className="tennis-history-title">Rally Volleys ({tennisHistory.length})</span>
+                      <button
+                        type="button"
+                        className="starter-chip"
+                        onClick={startTennisGame}
+                        style={{ fontSize: '10px', padding: '2px 8px' }}
+                      >
+                        New Serve
+                      </button>
+                    </div>
+                    <div className="tennis-volleys-list">
+                      {tennisHistory.map((h, idx) => (
+                        <div key={idx} className="tennis-volley-item">
+                          <span className="volley-order">#{tennisHistory.length - idx}</span>
+                          <span className="volley-served">{h.servedWord}</span>
+                          <span className="volley-arrow">-&gt;</span>
+                          <span className="volley-return">{h.playerWord}</span>
+                          <span className="volley-score">+{h.score} pts</span>
+                          <span className="volley-counter">AI: &ldquo;{h.counterWord}&rdquo;</span>
                         </div>
-                        <div className="answer-card-footer">
-                          <span>
-                            {g.solved
-                              ? 'Vault Unlocked!'
-                              : g.rank <= 300
-                              ? 'Burning hot bearing!'
-                              : g.rank <= 1500
-                              ? 'Warm shallows nearby.'
-                              : 'Cold waters. Ship drifts further.'}
-                          </span>
-                          <button
-                            type="button"
-                            className="pronounce-btn"
-                            onClick={() => pronounceWord(g.guess)}
-                            title="Hear pronunciation aloud"
-                          >
-                            <svg className="icon-svg" style={{ width: '12px', height: '12px' }} viewBox="0 0 24 24">
-                              <polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5" />
-                              <path d="M19.07 4.93a10 10 0 0 1 0 14.14M15.54 8.46a5 5 0 0 1 0 7.07" />
-                            </svg>
-                            Pronounce
-                          </button>
-                        </div>
-                      </div>
-                    );
-                  })}
-                </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
               </div>
+            ) : (
+              /* TAB 2: THE VAULT (SEMANTIC CLIMB) */
+              <>
+                {/* 1. Primary Question & Controls Card */}
+                <div className="question-card">
+                  {/* Daily Clue & Riddle */}
+                  <div className="daily-clue-header">
+                    <span className="clue-tag">Realm: {dailyClue.category}</span>
+                    <span className="clue-badge">DAILY CLUE</span>
+                  </div>
+                  <div className="clue-text">&ldquo;{dailyClue.hint}&rdquo;</div>
+
+                  {/* Ship Horizon Distance Lifeline Gauge */}
+                  <div className="lifeline-gauge">
+                    <div className="gauge-header">
+                      <span className="gauge-title">Ship Distance to Horizon</span>
+                      <span className={`gauge-status ${remainingLeagues <= 1 ? 'danger' : ''}`}>
+                        {remainingLeagues === 0 ? 'Ship Lost in Mist' : `${remainingLeagues} Leagues Remaining`}
+                      </span>
+                    </div>
+                    <div className="gauge-track">
+                      {[5, 4, 3, 2, 1].map((leagueNum, index) => {
+                        const isLost = index < incorrectGuesses;
+                        const isCritical = remainingLeagues <= 2;
+                        return (
+                          <div
+                            key={leagueNum}
+                            className={`gauge-knot ${isLost ? 'lost' : isCritical ? 'warning' : 'safe'}`}
+                            title={`League ${leagueNum}`}
+                          />
+                        );
+                      })}
+                    </div>
+                  </div>
+
+                  {/* Input Form with Hands-Free Speech Microphone & Dig Button */}
+                  <form onSubmit={handleClimbSubmit} className="input-row">
+                    <input
+                      ref={climbInputRef}
+                      className="ink-input"
+                      type="text"
+                      value={climbInput}
+                      onChange={(e) => setClimbInput(e.target.value)}
+                      placeholder={
+                        climbSolved
+                          ? 'Vault unlocked!'
+                          : remainingLeagues === 0
+                          ? 'Ship stranded in mist'
+                          : isRecording
+                          ? 'Listening to speech...'
+                          : 'Type any word...'
+                      }
+                      disabled={climbEvaluating || climbSolved || remainingLeagues === 0}
+                      autoComplete="off"
+                    />
+
+                    <button
+                      type="button"
+                      className={`icon-pill-btn ${isRecording ? 'recording' : ''}`}
+                      onClick={toggleListening}
+                      title={isRecording ? 'Listening... click to stop' : 'Speak your guess hands-free'}
+                      aria-label="Microphone"
+                      disabled={climbSolved || remainingLeagues === 0}
+                    >
+                      <svg className="icon-svg" viewBox="0 0 24 24">
+                        <path d="M12 1a3 3 0 0 0-3 3v8a3 3 0 0 0 6 0V4a3 3 0 0 0-3-3z" />
+                        <path d="M19 10v2a7 7 0 0 1-14 0v-2" />
+                        <line x1="12" y1="19" x2="12" y2="23" />
+                        <line x1="8" y1="23" x2="16" y2="23" />
+                      </svg>
+                    </button>
+
+                    <button
+                      type="submit"
+                      className="pill dig-btn"
+                      disabled={climbEvaluating || climbSolved || remainingLeagues === 0}
+                    >
+                      Dig
+                    </button>
+                  </form>
+
+                  {/* Starter Bearing Suggestions */}
+                  {climbGuesses.length === 0 && !climbSolved && (
+                    <div className="starter-chips-row">
+                      <span className="starter-label">Try a starting word:</span>
+                      {(dailyClue.suggestions || ['Beacon', 'Tower', 'Ocean']).map((sugg) => (
+                        <button
+                          key={sugg}
+                          type="button"
+                          className="starter-chip"
+                          onClick={() => handleQuickGuess(sugg)}
+                          disabled={climbEvaluating || remainingLeagues === 0}
+                        >
+                          {sugg}
+                        </button>
+                      ))}
+                    </div>
+                  )}
+
+                  {/* Helmsman Banter Scroll */}
+                  <div className="captain-scroll">
+                    <span>&ldquo;{captainBanter}&rdquo;</span>
+                  </div>
+
+                  {speechFeedback && (
+                    <div className="speech-hint">
+                      {speechFeedback}
+                    </div>
+                  )}
+                </div>
+
+                {/* 2. Answers Container - Rendered distinctly BELOW the question & input! */}
+                {climbGuesses.length > 0 && (
+                  <div className="answers-container">
+                    <div className="answers-header">
+                      <span className="answers-title">Cast Bearings ({climbGuesses.length})</span>
+                      <span className="answers-subtitle">Closest concepts on top</span>
+                    </div>
+                    <div className="answers-list" ref={feedRef}>
+                      {climbGuesses.map((g, i) => {
+                        const statusClass = g.solved ? 'solved' : g.rank <= 300 ? 'hot' : g.rank <= 1500 ? 'warm' : 'cold';
+                        const statusLabel = g.solved ? 'SOLVED' : g.rank <= 300 ? 'HOT' : g.rank <= 1500 ? 'WARM' : 'COLD';
+                        return (
+                          <div key={i} className={`answer-card ${statusClass}`}>
+                            <div className="answer-card-header">
+                              <span className={`rank-badge ${statusClass}`}>{statusLabel}</span>
+                              <span className="answer-word">{g.guess}</span>
+                              <span className="answer-rank">#{g.rank}</span>
+                              {g.similarity != null && (
+                                <span className="answer-sim-badge">{g.similarity}% sim</span>
+                              )}
+                            </div>
+                            <div className="answer-card-footer">
+                              <span>
+                                {g.bearing
+                                  ? g.bearing
+                                  : g.solved
+                                  ? 'Vault Unlocked!'
+                                  : g.rank <= 300
+                                  ? 'Burning hot bearing!'
+                                  : g.rank <= 1500
+                                  ? 'Warm shallows nearby.'
+                                  : 'Cold waters. Ship drifts further.'}
+                              </span>
+                              <button
+                                type="button"
+                                className="pronounce-btn"
+                                onClick={() => pronounceWord(g.guess)}
+                                title="Hear pronunciation aloud"
+                              >
+                                <svg className="icon-svg" style={{ width: '12px', height: '12px' }} viewBox="0 0 24 24">
+                                  <polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5" />
+                                  <path d="M19.07 4.93a10 10 0 0 1 0 14.14M15.54 8.46a5 5 0 0 1 0 7.07" />
+                                </svg>
+                                Pronounce
+                              </button>
+                            </div>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  </div>
+                )}
+              </>
             )}
           </div>
         </div>
@@ -1014,11 +1526,15 @@ export default function RepytGame() {
       {/* Rules / Articles Modal */}
       <dialog
         ref={rulesDialogRef}
+        className="rules-dialog"
         onClose={() => document.documentElement.classList.remove('has-modal')}
         onClick={(e) => e.target === rulesDialogRef.current && closeDialog(rulesDialogRef)}
       >
         <div className="modal-header">
-          <h3 className="modal-title">Repyt Articles</h3>
+          <div>
+            <h3 className="modal-title">Ship&apos;s Articles &amp; Rules</h3>
+            <div className="rules-modal-sub">Repyt Navigator&apos;s Codex</div>
+          </div>
           <button className="icon-pill-btn" onClick={() => closeDialog(rulesDialogRef)} aria-label="Close modal">
             <svg className="icon-svg" viewBox="0 0 24 24">
               <line x1="18" y1="6" x2="6" y2="18" />
@@ -1026,32 +1542,74 @@ export default function RepytGame() {
             </svg>
           </button>
         </div>
-        <div className="modal-body">
-          <h4>How to Play the Repyt Vault</h4>
-          <p>
-            A secret daily concept is sealed in the Repyt Vault. Enter or speak any word to test your conceptual proximity.
-          </p>
+        <div className="modal-body rules-modal-body">
+          {/* Section 1: The Vault */}
+          <div className="rules-section-card">
+            <div className="rules-card-title">
+              <span className="rules-mode-badge">Game Mode 1</span>
+              <h4>The Repyt Vault (Proximity Climb)</h4>
+            </div>
+            <p className="rules-card-intro">
+              A secret daily concept is sealed in the golden vault. Repyt measures <strong>semantic vector proximity</strong> to guide your bearing:
+            </p>
 
-          <h4>The 5-League Horizon Lifeline</h4>
-          <p>
-            You have <strong>5 leagues</strong> before your galleon disappears into the horizon mist. Every incorrect guess pushes your ship further away.
-          </p>
+            <div className="rules-ranks-grid">
+              <div className="rules-rank-item solved">
+                <span className="rules-rank-tag solved">#1 SOLVED</span>
+                <span className="rules-rank-info">Exact concept match unlocks the vault!</span>
+              </div>
+              <div className="rules-rank-item hot">
+                <span className="rules-rank-tag hot">#2 – #300 HOT</span>
+                <span className="rules-rank-info">Burning hot bearing! Direct synonym or core attribute.</span>
+              </div>
+              <div className="rules-rank-item warm">
+                <span className="rules-rank-tag warm">#301 – #1,500 WARM</span>
+                <span className="rules-rank-info">Warm shallows. Shared semantic domain or category.</span>
+              </div>
+              <div className="rules-rank-item cool">
+                <span className="rules-rank-tag cool">#1,501 – #4,000 COOL</span>
+                <span className="rules-rank-info">Cool breeze. Tangential or loose association.</span>
+              </div>
+              <div className="rules-rank-item cold">
+                <span className="rules-rank-tag cold">#4,001+ COLD</span>
+                <span className="rules-rank-info">Freezing waters. Distant or completely unrelated heading.</span>
+              </div>
+            </div>
 
-          <h4>Proximity Ranks</h4>
-          <ul>
-            <li><strong>#1 (SOLVED)</strong>: Exact match unlocks the vault!</li>
-            <li><strong>#2 - #300 (HOT)</strong>: Burning hot bearing. Near the secret concept.</li>
-            <li><strong>#301 - #1,500 (WARM)</strong>: Warm shallows in the same semantic sea.</li>
-            <li><strong>#1,501+ (COLD)</strong>: Distant icy waters. Try another heading.</li>
-          </ul>
+            <div className="rules-lifeline-desc">
+              <strong>The 5-League Horizon Lifeline:</strong> You have <strong>5 leagues (5, 4, 3, 2, 1)</strong> before your galleon fades into the mist. Each incorrect guess pushes your ship 1 league further. Reach #1 before all 5 leagues expire!
+            </div>
+          </div>
 
-          <h4>Speech Practice &amp; Hands-Free</h4>
-          <p>
-            Tap the microphone to speak your guess hands-free. Tap any Pronounce button to hear clear spoken pronunciation and earn doubloons.
-          </p>
+          {/* Section 2: Word Tennis */}
+          <div className="rules-section-card" style={{ marginTop: '12px' }}>
+            <div className="rules-card-title">
+              <span className="rules-mode-badge">Game Mode 2</span>
+              <h4>Repyt Tennis (Word Association Rally)</h4>
+            </div>
+            <p className="rules-card-intro">
+              High-speed associative rally against the AI pirate referee:
+            </p>
+            <ul className="rules-list">
+              <li><strong>15s Volley Clock:</strong> Return a creative associative word before time expires. Streaks speed up the timer!</li>
+              <li><strong>No Repeats:</strong> You cannot reuse words already played in the current rally.</li>
+              <li><strong>Streak Multipliers:</strong> Streaks at 5, 10, 15+ volleys earn combo multipliers (1.5x, 2.0x) and gold doubloons.</li>
+            </ul>
+          </div>
+
+          {/* Section 3: Speech & Pronunciation */}
+          <div className="rules-section-card" style={{ marginTop: '12px' }}>
+            <div className="rules-card-title">
+              <span className="rules-mode-badge">Feature</span>
+              <h4>Voice &amp; Pronunciation Practice</h4>
+            </div>
+            <p className="rules-card-intro">
+              Tap the <strong>Microphone</strong> icon to speak your guesses hands-free. Tap <strong>Pronounce</strong> on any word in your log to hear clear spoken pronunciation and earn <strong>+5 bonus doubloons</strong>!
+            </p>
+          </div>
         </div>
         <button className="pill" style={{ width: '100%' }} onClick={() => closeDialog(rulesDialogRef)}>
-          Understood!
+          Understood, Captain!
         </button>
       </dialog>
 
@@ -1076,7 +1634,7 @@ export default function RepytGame() {
               {pirateRank.title}
             </div>
             <div style={{ font: '700 12px/1 "Open Sans"', opacity: 0.6, letterSpacing: '0.14em', textTransform: 'uppercase' }}>
-              {pirateRank.badge} NAVIGATOR
+              {pirateRank.badge} NAVIGATOR · {SHIPYARD_CATALOG.ships.find((s) => s.id === shipyard.equippedShip)?.name || 'Swift Sloop'}
             </div>
           </div>
 
@@ -1098,6 +1656,48 @@ export default function RepytGame() {
               <div className="stat-val">
                 {climbGuesses.length > 0 ? `#${Math.min(...climbGuesses.map((g) => g.rank))}` : 'None'}
               </div>
+            </div>
+          </div>
+
+          {/* Daily Quests Section */}
+          <div className="daily-quests-section">
+            <div className="quests-header">
+              <h4 className="quests-section-title">Daily Logbook Quests</h4>
+              <span className="quests-sub">Earn bonus Gold doubloons</span>
+            </div>
+            <div className="quests-list">
+              {dailyQuests.map((q) => (
+                <div key={q.id} className={`quest-card ${q.completed ? 'completed' : ''}`}>
+                  <div className="quest-info">
+                    <div className="quest-title">{q.title}</div>
+                    <div className="quest-desc">{q.desc}</div>
+                    <div className="quest-progress-track">
+                      <div
+                        className="quest-progress-bar"
+                        style={{ width: `${Math.min(100, (q.current / q.target) * 100)}%` }}
+                      />
+                    </div>
+                    <div className="quest-progress-text">
+                      {q.current} / {q.target} {q.completed ? '· Goal Reached!' : ''}
+                    </div>
+                  </div>
+                  <div className="quest-action">
+                    {q.claimed ? (
+                      <span className="quest-claimed-badge">Claimed</span>
+                    ) : q.completed ? (
+                      <button
+                        type="button"
+                        className="pill quest-claim-btn"
+                        onClick={() => handleClaimQuest(q.id)}
+                      >
+                        Claim +{q.reward} Gold
+                      </button>
+                    ) : (
+                      <span className="quest-reward-tag">+{q.reward} Gold</span>
+                    )}
+                  </div>
+                </div>
+              ))}
             </div>
           </div>
         </div>
@@ -1123,9 +1723,9 @@ export default function RepytGame() {
         </div>
         <div className="modal-body">
           <p>
-            Your galleon drifted past the horizon after 5 missed leagues. The Repyt Vault remains sealed for this voyage.
+            Your galleon drifted past the horizon after 5 missed leagues. Today&apos;s mystery concept was <strong>&ldquo;{dailyClue.targetWord || 'The Secret Concept'}&rdquo;</strong>.
           </p>
-          <div className="stats-grid" style={{ margin: '18px 0' }}>
+          <div className="stats-grid" style={{ margin: '14px 0 10px' }}>
             <div className="stat-card">
               <div className="stat-lbl">Attempts Made</div>
               <div className="stat-val">5 / 5</div>
@@ -1137,7 +1737,26 @@ export default function RepytGame() {
               </div>
             </div>
           </div>
+
+          {/* Nearest Semantic Concepts Reveal */}
+          {dailyClue.nearestNeighbors && dailyClue.nearestNeighbors.length > 0 && (
+            <div className="nearest-reveal-section">
+              <div className="nearest-reveal-title">Top Closest Concepts in English:</div>
+              <div className="nearest-reveal-grid">
+                {dailyClue.nearestNeighbors.map((n, idx) => (
+                  <div key={idx} className="nearest-neighbor-pill">
+                    <span className="neighbor-rank">#{n.rank}</span>
+                    <span className="neighbor-word">{n.word}</span>
+                    <span className="neighbor-sim">{n.similarity}%</span>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
         </div>
+        <button className="pill share-btn" onClick={shareVoyageResults} style={{ width: '100%', marginBottom: '8px' }}>
+          Share Voyage (Copy Grid)
+        </button>
         <button className="pill" style={{ width: '100%' }} onClick={resetVoyage}>
           Chart New Course
         </button>
@@ -1162,7 +1781,7 @@ export default function RepytGame() {
           <p>
             Splendid navigation! You uncovered today&apos;s secret concept and opened the Repyt Vault!
           </p>
-          <div className="stats-grid" style={{ margin: '18px 0' }}>
+          <div className="stats-grid" style={{ margin: '14px 0 10px' }}>
             <div className="stat-card">
               <div className="stat-lbl">Leagues Spared</div>
               <div className="stat-val" style={{ color: 'var(--emerald)' }}>{remainingLeagues}</div>
@@ -1172,11 +1791,194 @@ export default function RepytGame() {
               <div className="stat-val" style={{ color: 'var(--gold)' }}>+150 Gold</div>
             </div>
           </div>
+
+          {/* Nearest Semantic Concepts Reveal */}
+          {dailyClue.nearestNeighbors && dailyClue.nearestNeighbors.length > 0 && (
+            <div className="nearest-reveal-section">
+              <div className="nearest-reveal-title">Top Closest Concepts in English:</div>
+              <div className="nearest-reveal-grid">
+                {dailyClue.nearestNeighbors.map((n, idx) => (
+                  <div key={idx} className="nearest-neighbor-pill">
+                    <span className="neighbor-rank">#{n.rank}</span>
+                    <span className="neighbor-word">{n.word}</span>
+                    <span className="neighbor-sim">{n.similarity}%</span>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
         </div>
+        <button className="pill share-btn" onClick={shareVoyageResults} style={{ width: '100%', marginBottom: '8px' }}>
+          Share Voyage (Copy Grid)
+        </button>
         <button className="pill" style={{ width: '100%' }} onClick={resetVoyage}>
           Embark on Next Voyage
         </button>
       </dialog>
+
+      {/* The Pirate Shipyard Modal Dialog */}
+      <dialog
+        ref={shipyardDialogRef}
+        className="shipyard-dialog"
+        onClose={() => document.documentElement.classList.remove('has-modal')}
+        onClick={(e) => e.target === shipyardDialogRef.current && closeDialog(shipyardDialogRef)}
+      >
+        <div className="modal-header">
+          <div>
+            <h3 className="modal-title">The Pirate Shipyard</h3>
+            <div className="rules-modal-sub">Fleet Vessels &amp; Navigational Charts</div>
+          </div>
+          <button className="icon-pill-btn" onClick={() => closeDialog(shipyardDialogRef)} aria-label="Close modal">
+            <svg className="icon-svg" viewBox="0 0 24 24">
+              <line x1="18" y1="6" x2="6" y2="18" />
+              <line x1="6" y1="6" x2="18" y2="18" />
+            </svg>
+          </button>
+        </div>
+        <div className="modal-body shipyard-modal-body">
+          <div className="shipyard-gold-banner">
+            <span>Pirate Treasury:</span>
+            <span className="shipyard-gold-amount">{stats.doubloons} Doubloons</span>
+          </div>
+
+          <h4 className="shipyard-cat-title">Fleet Flagships</h4>
+          <div className="shipyard-grid">
+            {SHIPYARD_CATALOG.ships.map((s) => {
+              const isUnlocked = shipyard.unlockedShips.includes(s.id);
+              const isEquipped = shipyard.equippedShip === s.id;
+              const canAfford = stats.doubloons >= s.cost;
+              return (
+                <div key={s.id} className={`shipyard-item-card ${isEquipped ? 'equipped' : ''}`}>
+                  <div className="shipyard-icon">[{s.code}]</div>
+                  <div className="shipyard-name">{s.name}</div>
+                  <div className="shipyard-desc">{s.desc}</div>
+                  <div className="shipyard-card-footer">
+                    {isEquipped ? (
+                      <span className="shipyard-badge equipped">Active Vessel</span>
+                    ) : isUnlocked ? (
+                      <button
+                        type="button"
+                        className="shipyard-btn equip"
+                        onClick={() => handleEquipItem('ship', s.id)}
+                      >
+                        Set Sail
+                      </button>
+                    ) : (
+                      <button
+                        type="button"
+                        className={`shipyard-btn buy ${!canAfford ? 'disabled' : ''}`}
+                        onClick={() => handleUnlockItem('ship', s.id, s.cost)}
+                        disabled={!canAfford}
+                      >
+                        Buy: {s.cost} Gold
+                      </button>
+                    )}
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+
+          <h4 className="shipyard-cat-title" style={{ marginTop: '16px' }}>Parchment Map Themes</h4>
+          <div className="shipyard-grid">
+            {SHIPYARD_CATALOG.themes.map((t) => {
+              const isUnlocked = shipyard.unlockedThemes.includes(t.id);
+              const isEquipped = shipyard.equippedTheme === t.id;
+              const canAfford = stats.doubloons >= t.cost;
+              return (
+                <div key={t.id} className={`shipyard-item-card ${isEquipped ? 'equipped' : ''}`}>
+                  <div
+                    className="shipyard-swatch"
+                    style={{ background: t.bg, border: '2px solid var(--line)' }}
+                  />
+                  <div className="shipyard-name">{t.name}</div>
+                  <div className="shipyard-desc">{t.desc}</div>
+                  <div className="shipyard-card-footer">
+                    {isEquipped ? (
+                      <span className="shipyard-badge equipped">Active Map</span>
+                    ) : isUnlocked ? (
+                      <button
+                        type="button"
+                        className="shipyard-btn equip"
+                        onClick={() => handleEquipItem('theme', t.id)}
+                      >
+                        Apply Theme
+                      </button>
+                    ) : (
+                      <button
+                        type="button"
+                        className={`shipyard-btn buy ${!canAfford ? 'disabled' : ''}`}
+                        onClick={() => handleUnlockItem('theme', t.id, t.cost)}
+                        disabled={!canAfford}
+                      >
+                        Buy: {t.cost} Gold
+                      </button>
+                    )}
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        </div>
+        <button className="pill" style={{ width: '100%' }} onClick={() => closeDialog(shipyardDialogRef)}>
+          Return to Deck
+        </button>
+      </dialog>
+
+      {/* Word Tennis Rally Concluded Modal */}
+      <dialog
+        ref={tennisGameOverDialogRef}
+        onClose={() => document.documentElement.classList.remove('has-modal')}
+        onClick={(e) => e.target === tennisGameOverDialogRef.current && closeDialog(tennisGameOverDialogRef)}
+      >
+        <div className="modal-header">
+          <h3 className="modal-title">Rally Concluded!</h3>
+          <button className="icon-pill-btn" onClick={() => closeDialog(tennisGameOverDialogRef)} aria-label="Close modal">
+            <svg className="icon-svg" viewBox="0 0 24 24">
+              <line x1="18" y1="6" x2="6" y2="18" />
+              <line x1="6" y1="6" x2="18" y2="18" />
+            </svg>
+          </button>
+        </div>
+        <div className="modal-body">
+          <p>{tennisResult?.reason || 'The word volley has dropped into the sea.'}</p>
+          <div className="stats-grid" style={{ margin: '18px 0' }}>
+            <div className="stat-card">
+              <div className="stat-lbl">Final Score</div>
+              <div className="stat-val" style={{ color: 'var(--gold)' }}>{tennisResult?.score || 0}</div>
+            </div>
+            <div className="stat-card">
+              <div className="stat-lbl">Rally Length</div>
+              <div className="stat-val">{tennisResult?.wordsCount || 0} Volleys</div>
+            </div>
+            <div className="stat-card">
+              <div className="stat-lbl">Best Streak</div>
+              <div className="stat-val">{tennisResult?.streak || 0}</div>
+            </div>
+            <div className="stat-card">
+              <div className="stat-lbl">Bounty Awarded</div>
+              <div className="stat-val" style={{ color: 'var(--emerald)' }}>+{tennisResult?.earnedDoubloons || 0} Gold</div>
+            </div>
+          </div>
+        </div>
+        <button
+          className="pill"
+          style={{ width: '100%' }}
+          onClick={() => {
+            closeDialog(tennisGameOverDialogRef);
+            startTennisGame();
+          }}
+        >
+          Serve Next Rally!
+        </button>
+      </dialog>
+
+      {/* Share Toast Banner */}
+      {shareToast && (
+        <div className="share-toast-banner">
+          {shareToast}
+        </div>
+      )}
     </>
   );
 }

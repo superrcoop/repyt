@@ -1,6 +1,10 @@
 import { NextResponse } from 'next/server';
+import { GoogleGenAI } from '@google/genai';
 
 export const maxDuration = 15;
+
+// In-memory cache for word embeddings: text -> float[]
+const embeddingCache = new Map();
 
 // 30 Curated rotating daily words
 const DAILY_TARGETS = [
@@ -45,6 +49,64 @@ const TARGET_DETAILS = {
   'Horizon': { category: 'Perspective & Sea', realm: 'The Distant Verge', hint: 'The far line where ocean meets the sky at the limits of vision.', suggestions: ['Sky', 'Sea', 'Distance'] }
 };
 
+const NEAREST_NEIGHBORS = {
+  'Lighthouse': [
+    { word: 'Beacon', similarity: 94.8, rank: 2 },
+    { word: 'Foghorn', similarity: 91.2, rank: 14 },
+    { word: 'Watchtower', similarity: 88.5, rank: 35 },
+    { word: 'Coastguard', similarity: 86.1, rank: 62 },
+  ],
+  'Volcano': [
+    { word: 'Magma', similarity: 95.2, rank: 2 },
+    { word: 'Eruption', similarity: 93.6, rank: 9 },
+    { word: 'Crater', similarity: 89.4, rank: 28 },
+    { word: 'Lava', similarity: 87.8, rank: 45 },
+  ],
+  'Compass': [
+    { word: 'Sextant', similarity: 94.3, rank: 2 },
+    { word: 'Bearing', similarity: 91.0, rank: 12 },
+    { word: 'Heading', similarity: 88.6, rank: 38 },
+    { word: 'Navigator', similarity: 86.4, rank: 59 },
+  ],
+  'Submarine': [
+    { word: 'Periscope', similarity: 93.8, rank: 3 },
+    { word: 'Torpedo', similarity: 90.5, rank: 18 },
+    { word: 'Sonar', similarity: 88.1, rank: 41 },
+    { word: 'Nautilus', similarity: 85.9, rank: 74 },
+  ],
+  'Telescope': [
+    { word: 'Observatory', similarity: 94.5, rank: 2 },
+    { word: 'Binoculars', similarity: 91.8, rank: 10 },
+    { word: 'Stargazer', similarity: 88.4, rank: 36 },
+    { word: 'Astrolabe', similarity: 85.7, rank: 68 },
+  ],
+  'Glacier': [
+    { word: 'Iceberg', similarity: 94.2, rank: 2 },
+    { word: 'Crevasse', similarity: 90.8, rank: 16 },
+    { word: 'Permafrost', similarity: 87.9, rank: 42 },
+    { word: 'Moraine', similarity: 85.3, rank: 75 },
+  ],
+  'Horizon': [
+    { word: 'Skyline', similarity: 93.9, rank: 3 },
+    { word: 'Verge', similarity: 89.7, rank: 24 },
+    { word: 'Vista', similarity: 87.5, rank: 49 },
+    { word: 'Expanse', similarity: 85.1, rank: 77 },
+  ],
+};
+
+export function getNearestNeighbors(target) {
+  if (NEAREST_NEIGHBORS[target]) return NEAREST_NEIGHBORS[target];
+  const details = getTargetDetails(target);
+  const baseSims = [93.4, 89.8, 86.5, 83.2];
+  const baseRanks = [4, 19, 48, 88];
+  const suggestions = details.suggestions || ['Beacon', 'Coast', 'Navigation', 'Harbor'];
+  return suggestions.map((word, idx) => ({
+    word,
+    similarity: baseSims[idx] || 82.0,
+    rank: baseRanks[idx] || (idx + 1) * 20,
+  }));
+}
+
 function getDailyTarget(dateStr) {
   let hash = 0;
   for (let i = 0; i < dateStr.length; i++) {
@@ -78,17 +140,124 @@ function isValidGeminiKey(key) {
   return (clean.startsWith('AIzaSy') || clean.startsWith('AQ.')) && clean.length >= 30;
 }
 
+// Vector math: Cosine similarity between two float arrays
+function cosineSimilarity(vecA, vecB) {
+  if (!vecA || !vecB || vecA.length !== vecB.length) return 0;
+  let dot = 0;
+  let normA = 0;
+  let normB = 0;
+  for (let i = 0; i < vecA.length; i++) {
+    dot += vecA[i] * vecB[i];
+    normA += vecA[i] * vecA[i];
+    normB += vecB[i] * vecB[i];
+  }
+  if (normA === 0 || normB === 0) return 0;
+  return dot / (Math.sqrt(normA) * Math.sqrt(normB));
+}
+
+// Maps continuous cosine similarity [-1, 1] to a calibrated rank curve (#1 to #9999)
+function similarityToRank(sim) {
+  const s = Math.max(0, Math.min(sim, 1.0));
+  if (s >= 0.999) return 1;
+
+  // Burning Hot: 0.72 <= s < 0.999 -> ranks 2..300
+  if (s >= 0.72) {
+    const ratio = (0.999 - s) / (0.999 - 0.72);
+    return Math.round(2 + ratio * 298);
+  }
+
+  // Warm Shallows: 0.52 <= s < 0.72 -> ranks 301..1500
+  if (s >= 0.52) {
+    const ratio = (0.72 - s) / (0.72 - 0.52);
+    return Math.round(301 + ratio * 1199);
+  }
+
+  // Cool: 0.32 <= s < 0.52 -> ranks 1501..4000
+  if (s >= 0.32) {
+    const ratio = (0.52 - s) / (0.52 - 0.32);
+    return Math.round(1501 + ratio * 2499);
+  }
+
+  // Freezing Waters: s < 0.32 -> ranks 4001..9999
+  const ratio = Math.min(1, (0.32 - s) / 0.32);
+  return Math.round(4001 + ratio * 5998);
+}
+
+function getVectorCompassBearing(rank, sim) {
+  if (rank === 1) return 'Exact Target Identified!';
+  if (rank <= 300) return 'Direct Heading: Core Attribute / Direct Synonym';
+  if (rank <= 1500) return 'On Course: Shared Domain & Conceptual Field';
+  if (rank <= 4000) return 'Drifting: Loose / Tangential Association';
+  return 'Opposite Heading: Unrelated Semantic Domain';
+}
+
+// Fetch or retrieve cached embedding from Google GenAI with strict timeouts
+async function fetchEmbedding(word, apiKey) {
+  const normalized = word.toLowerCase().trim();
+  if (embeddingCache.has(normalized)) {
+    return embeddingCache.get(normalized);
+  }
+
+  // 1. Fast direct REST call with 3000ms timeout
+  try {
+    const restUrl = `https://generativelanguage.googleapis.com/v1beta/models/text-embedding-004:embedContent?key=${apiKey}`;
+    const res = await fetch(restUrl, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        model: 'models/text-embedding-004',
+        content: { parts: [{ text: normalized }] },
+      }),
+      signal: AbortSignal.timeout(3000),
+    });
+
+    if (res.ok) {
+      const data = await res.json();
+      const values = data?.embedding?.values;
+      if (Array.isArray(values) && values.length > 0) {
+        embeddingCache.set(normalized, values);
+        return values;
+      }
+    }
+  } catch (restErr) {
+    // REST call timed out or failed
+  }
+
+  // 2. Try SDK with 3000ms timeout
+  try {
+    const ai = new GoogleGenAI({ apiKey });
+    const sdkCall = ai.models.embedContent({
+      model: 'gemini-embedding-001',
+      contents: normalized,
+    });
+    const timeout = new Promise((_, reject) =>
+      setTimeout(() => reject(new Error('SDK embedding timeout (3000ms)')), 3000)
+    );
+    const response = await Promise.race([sdkCall, timeout]);
+
+    const values = response?.embedding?.values || response?.embeddings?.[0]?.values;
+    if (Array.isArray(values) && values.length > 0) {
+      embeddingCache.set(normalized, values);
+      return values;
+    }
+  } catch (sdkErr) {
+    // SDK failed or timed out
+  }
+
+  throw new Error(`Embedding unavailable for "${word}"`);
+}
+
 function offlineEstimateRank(guess, target) {
   const g = guess.toLowerCase().trim();
   const t = target.toLowerCase().trim();
 
   if (g === t) {
-    return 1;
+    return { rank: 1, similarity: 1.0 };
   }
 
-  let score = 5000;
-  if (g.length === t.length) score -= 400;
-  if (g[0] === t[0]) score -= 800;
+  let sim = 0.15;
+  if (g.length === t.length) sim += 0.08;
+  if (g[0] === t[0]) sim += 0.12;
 
   const relatedGroups = [
     ['light', 'beacon', 'tower', 'coast', 'sea', 'ocean', 'ship', 'fog', 'lamp', 'lighthouse'],
@@ -110,24 +279,27 @@ function offlineEstimateRank(guess, target) {
 
   for (const group of relatedGroups) {
     if (group.includes(t) && group.includes(g)) {
-      score = Math.floor(Math.random() * 250 + 25);
+      sim = 0.78 + Math.random() * 0.15;
       break;
     }
   }
 
-  return Math.max(2, Math.min(score, 9999));
+  const rank = similarityToRank(sim);
+  return { rank, similarity: Math.max(0.05, Math.min(sim, 0.98)) };
 }
 
 export async function GET() {
   const dateStr = new Date().toISOString().slice(0, 10);
   const target = getDailyTarget(dateStr);
   const details = getTargetDetails(target);
+  const nearestNeighbors = getNearestNeighbors(target);
 
   return NextResponse.json({
     category: details.category,
     realm: details.realm,
     hint: details.hint,
     suggestions: details.suggestions,
+    nearestNeighbors,
   });
 }
 
@@ -136,6 +308,8 @@ export async function POST(req) {
   const dateStr = new Date().toISOString().slice(0, 10);
   const target = getDailyTarget(dateStr);
   const details = getTargetDetails(target);
+  const nearestNeighbors = getNearestNeighbors(target);
+  const extendedDetails = { ...details, targetWord: target, nearestNeighbors };
 
   try {
     const body = await req.json();
@@ -153,12 +327,16 @@ export async function POST(req) {
       return NextResponse.json({
         guess: cleanGuess,
         rank: 1,
+        similarity: 100,
+        bearing: getVectorCompassBearing(1, 1.0),
         solved: true,
         temperature: temp.label,
         color: temp.color,
         icon: temp.icon,
         hint: `Bingo! The daily target was ${target}!`,
-        details,
+        targetWord: target,
+        nearestNeighbors,
+        details: extendedDetails,
       });
     }
 
@@ -166,88 +344,82 @@ export async function POST(req) {
     const apiKey = rawKey ? rawKey.trim().replace(/^['"]|['"]$/g, '') : '';
 
     if (!isValidGeminiKey(apiKey)) {
-      const rank = offlineEstimateRank(cleanGuess, target);
-      const temp = getTemperature(rank);
+      const offline = offlineEstimateRank(cleanGuess, target);
+      const temp = getTemperature(offline.rank);
       return NextResponse.json({
         guess: cleanGuess,
-        rank,
+        rank: offline.rank,
+        similarity: Math.round(offline.similarity * 1000) / 10,
+        bearing: getVectorCompassBearing(offline.rank, offline.similarity),
         solved: false,
         temperature: temp.label,
         color: temp.color,
         icon: temp.icon,
-        hint: rank <= 300 ? 'You are burning hot in meaning!' : 'Keep searching different categories.',
+        hint: offline.rank <= 300 ? 'You are burning hot in meaning!' : 'Keep searching different categories.',
         mode: 'offline_heuristic',
-        details,
+        details: extendedDetails,
       });
     }
 
-    const prompt = `You are the referee and judge for Repyt, an AI semantic proximity concept voyage (like Contexto).
-Target Secret Word: "${target}"
-Player Guess: "${cleanGuess}"
+    // Step 1: True Vector Embeddings & Cosine Similarity (max 4500ms ceiling)
+    const vectorPromise = Promise.all([
+      fetchEmbedding(target, apiKey),
+      fetchEmbedding(cleanGuess, apiKey)
+    ]);
+    const timeoutPromise = new Promise((_, reject) =>
+      setTimeout(() => reject(new Error('Vector calculation timeout (4500ms)')), 4500)
+    );
 
-Determine the semantic similarity and distance between the target and the guess in human conceptual space.
-Rank scale:
-- 1: The exact word (not applicable here)
-- 2 to 300: Extremely close / direct synonym, identical category, or primary attribute (Burning Hot)
-- 301 to 1500: Closely related concept / same domain (Warm Shallows)
-- 1501 to 4000: Distantly related / loose association (Cool)
-- 4001 to 10000: Completely unrelated / opposite / abstract mismatch (Freezing Waters)
+    const [targetVec, guessVec] = await Promise.race([vectorPromise, timeoutPromise]);
 
-Return strictly valid JSON:
-{
-  "rank": 240,
-  "hint": "Very close! Think about where this object operates on the voyage."
-}`;
-
-    const geminiUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-3.5-flash-lite:generateContent?key=${apiKey}`;
-    const apiRes = await fetch(geminiUrl, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        contents: [{ parts: [{ text: prompt }] }],
-        generationConfig: {
-          responseMimeType: 'application/json',
-        },
-      }),
-    });
-
-    if (!apiRes.ok) {
-      const errBody = await apiRes.text();
-      throw new Error(`Gemini API error ${apiRes.status}: ${errBody}`);
-    }
-
-    const data = await apiRes.json();
-    const text = data?.candidates?.[0]?.content?.parts?.[0]?.text || '{}';
-    const parsed = JSON.parse(text);
-    const rank = Math.max(2, Math.min(Number(parsed.rank) || 4500, 9999));
+    const sim = cosineSimilarity(targetVec, guessVec);
+    const rank = similarityToRank(sim);
     const temp = getTemperature(rank);
+    const simPercent = Math.round(sim * 1000) / 10;
+    const bearing = getVectorCompassBearing(rank, sim);
+
+    // Step 2: Contextual hint based on vector distance
+    let hint = '';
+    if (rank <= 300) {
+      hint = 'Burning hot! You are circling the exact conceptual core.';
+    } else if (rank <= 1500) {
+      hint = 'Warm shallows! You are in the right domain—hone in on specific function or form.';
+    } else if (rank <= 4000) {
+      hint = 'Cool breeze. The concept shares a loose connection, but try shifting perspective.';
+    } else {
+      hint = 'Freezing waters. This concept is in an entirely different corner of the map.';
+    }
 
     return NextResponse.json({
       guess: cleanGuess,
       rank,
+      similarity: simPercent,
+      bearing,
       solved: false,
       temperature: temp.label,
       color: temp.color,
       icon: temp.icon,
-      hint: parsed.hint || '',
-      mode: 'gemini_live',
-      details,
+      hint,
+      mode: 'vector_gemini',
+      details: extendedDetails,
     });
   } catch (err) {
-    console.error('Semantic-climb API error, falling back to offline mode:', err);
-    const rank = offlineEstimateRank(cleanGuess || 'word', target);
-    const temp = getTemperature(rank);
+    console.error('Semantic-climb API vector error, falling back to offline mode:', err);
+    const offline = offlineEstimateRank(cleanGuess || 'word', target);
+    const temp = getTemperature(offline.rank);
     return NextResponse.json({
       guess: cleanGuess || 'guess',
-      rank,
+      rank: offline.rank,
+      similarity: Math.round(offline.similarity * 1000) / 10,
+      bearing: getVectorCompassBearing(offline.rank, offline.similarity),
       solved: false,
       temperature: temp.label,
       color: temp.color,
       icon: temp.icon,
-      hint: rank <= 300 ? 'You are burning hot in meaning!' : 'Keep searching different categories.',
+      hint: offline.rank <= 300 ? 'You are burning hot in meaning!' : 'Keep searching different categories.',
       mode: 'offline_fallback',
       detail: err.message,
-      details,
+      details: extendedDetails,
     });
   }
 }

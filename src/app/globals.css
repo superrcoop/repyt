@@ -551,25 +551,30 @@ html.fine #ping {
 
 .gauge-knot {
   flex: 1;
-  height: 8px;
+  height: 10px;
   border: 2px solid var(--line);
   border-radius: 999px;
   background: var(--paper);
-  transition: background 0.3s, transform 0.3s;
+  box-shadow: 0 1.5px 0 0 var(--line);
+  transition: all 0.25s ease;
 }
 
 .gauge-knot.safe {
-  background: #047857;
+  background: #059669;
+  border-color: var(--line);
 }
 
 .gauge-knot.warning {
-  background: #b45309;
+  background: #d97706;
+  border-color: var(--line);
 }
 
 .gauge-knot.lost {
-  background: #e2e8f0;
+  background: #cbd5e1;
+  border-color: #94a3b8;
   opacity: 0.4;
-  transform: scaleY(0.7);
+  box-shadow: none;
+  transform: scaleY(0.65);
 }
 
 .input-row {
@@ -1140,4 +1145,886 @@ dialog::backdrop {
     font-size: 13.5px !important;
   }
 }
+
+/* ========================================================
+   Game Mode Selector Tabs & Navigation
+   ======================================================== */
+.nav-link-active {
+  color: var(--gold) !important;
+  border-bottom: 2px solid var(--gold);
+}
+
+.vault-nav-actions {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-shrink: 0;
+}
+
+.mode-toggle-group {
+  display: inline-flex;
+  align-items: center;
+  background: #efe9d9;
+  border: 2px solid var(--line);
+  border-radius: 999px;
+  padding: 2px;
+}
+
+.mode-tab-btn {
+  font: 700 11px/1 "Josefin Sans", sans-serif;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  padding: 6px 14px 5px;
+  border-radius: 999px;
+  color: var(--ink);
+  opacity: 0.65;
+  transition: all 0.2s ease;
+  cursor: pointer;
+}
+
+.mode-tab-btn:hover {
+  opacity: 1;
+}
+
+.mode-tab-btn.active {
+  background: var(--ink);
+  color: var(--paper);
+  opacity: 1;
+}
+
+/* ========================================================
+   Word Tennis Arena Styles
+   ======================================================== */
+.tennis-arena-card {
+  border-color: var(--line);
+}
+
+.tennis-arena-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding-bottom: 8px;
+  border-bottom: 1.5px dashed rgba(22, 19, 14, 0.25);
+}
+
+.tennis-status-wrap {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.tennis-streak-badge {
+  font: 700 11px/1 "Josefin Sans", sans-serif;
+  letter-spacing: 0.06em;
+  background: #fef3c7;
+  color: var(--gold);
+  border: 1.5px solid var(--gold);
+  border-radius: 999px;
+  padding: 3px 9px 2px;
+}
+
+.tennis-hud-stats {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.tennis-timer-pill {
+  font: 700 12px/1 "Open Sans", monospace;
+  letter-spacing: 0.04em;
+  background: #e0f2fe;
+  color: #0369a1;
+  border: 1.5px solid #0284c7;
+  border-radius: 999px;
+  padding: 4px 10px 3px;
+  transition: background 0.3s, color 0.3s;
+}
+
+.tennis-timer-pill.warning {
+  background: #fef3c7;
+  color: #b45309;
+  border-color: #d97706;
+}
+
+.tennis-timer-pill.urgent {
+  background: #fee2e2;
+  color: #b91c1c;
+  border-color: #ef4444;
+  animation: timerPulse 0.6s infinite alternate;
+}
+
+@keyframes timerPulse {
+  0% { transform: scale(1); }
+  100% { transform: scale(1.08); }
+}
+
+.tennis-score-badge {
+  font: 700 12px/1 "Josefin Sans", sans-serif;
+  background: #dcfce7;
+  color: var(--emerald);
+  border: 1.5px solid var(--emerald);
+  border-radius: 999px;
+  padding: 4px 10px 3px;
+}
+
+.tennis-served-section {
+  text-align: center;
+  padding: 12px 16px 8px;
+  background: #ebe5d4;
+  border: 2px dashed rgba(22, 19, 14, 0.3);
+  border-radius: 14px;
+  margin: 4px 0;
+}
+
+.tennis-served-label {
+  font: 700 10.5px/1 "Open Sans", sans-serif;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  opacity: 0.6;
+}
+
+.tennis-served-word {
+  font: 400 38px/1 "Goudy Bookletter 1911", serif;
+  color: var(--ink);
+  margin: 6px 0 4px;
+  letter-spacing: 0.04em;
+}
+
+.tennis-instruction {
+  font: 600 11.5px/1.4 "Open Sans", sans-serif;
+  opacity: 0.75;
+}
+
+.tennis-hit-btn {
+  background: var(--gold) !important;
+  color: #fff !important;
+  box-shadow: 0 4px 0 -1px var(--paper), 0 4px 0 2px var(--line) !important;
+}
+
+.tennis-hit-btn:hover {
+  background: #92400e !important;
+}
+
+/* Volley History Feed */
+.tennis-history-feed {
+  margin-top: 6px;
+  padding-top: 8px;
+  border-top: 1px dotted rgba(22, 19, 14, 0.25);
+}
+
+.tennis-history-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 6px;
+}
+
+.tennis-history-title {
+  font: 700 11px/1 "Open Sans", sans-serif;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  opacity: 0.65;
+}
+
+.tennis-volleys-list {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  max-height: 120px;
+  overflow-y: auto;
+  padding-right: 4px;
+}
+
+.tennis-volley-item {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  background: #fbf8ef;
+  border: 1.5px solid var(--line);
+  border-radius: 10px;
+  padding: 5px 10px;
+  font-size: 12px;
+}
+
+.volley-order {
+  font-weight: 700;
+  color: var(--gold);
+  font-size: 11px;
+}
+
+.volley-served {
+  font-family: "Goudy Bookletter 1911", serif;
+  font-size: 14px;
+  font-weight: 600;
+}
+
+.volley-arrow {
+  opacity: 0.4;
+  font-size: 11px;
+}
+
+.volley-return {
+  font-family: "Goudy Bookletter 1911", serif;
+  font-size: 14px;
+  font-weight: 700;
+  color: var(--emerald);
+}
+
+.volley-score {
+  font: 700 10.5px/1 "Josefin Sans", sans-serif;
+  background: #eef8ee;
+  border: 1px solid var(--emerald);
+  color: var(--emerald);
+  padding: 2px 6px;
+  border-radius: 999px;
+  margin-left: auto;
+}
+
+.volley-counter {
+  font-style: italic;
+  font-size: 11px;
+  opacity: 0.7;
+}
+
+/* Vector Similarity Badge in Vault Answers */
+.answer-sim-badge {
+  font: 700 10.5px/1 "Open Sans", monospace;
+  letter-spacing: 0.04em;
+  background: #eef2ff;
+  color: #4338ca;
+  border: 1px solid #6366f1;
+  padding: 2px 7px;
+  border-radius: 999px;
+  margin-left: auto;
+}
+
+/* ========================================================
+   Repyt Navigator's Codex / Rules Modal
+   ======================================================== */
+.rules-dialog {
+  max-width: 580px !important;
+  width: 92% !important;
+  max-height: 85vh;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  padding: 24px 28px !important;
+}
+
+.rules-modal-sub {
+  font: 700 11px/1 "Josefin Sans", sans-serif;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--gold);
+  margin-top: 5px;
+}
+
+.rules-modal-body {
+  overflow-y: auto;
+  max-height: 58vh;
+  padding-right: 6px;
+  margin-bottom: 18px;
+  scrollbar-width: thin;
+  -webkit-overflow-scrolling: touch;
+}
+
+.rules-modal-body::-webkit-scrollbar {
+  width: 5px;
+}
+
+.rules-modal-body::-webkit-scrollbar-thumb {
+  background: rgba(22, 19, 14, 0.25);
+  border-radius: 999px;
+}
+
+.rules-section-card {
+  background: #fbf8ef;
+  border: 2px solid var(--line);
+  border-radius: 16px;
+  padding: 14px 16px;
+  box-shadow: 0 4px 0 -1px var(--paper), 0 4px 0 1px var(--line);
+}
+
+.rules-card-title {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 8px;
+}
+
+.rules-card-title h4 {
+  font: 700 13.5px/1.2 "Josefin Sans", sans-serif;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--ink);
+  margin: 0;
+}
+
+.rules-mode-badge {
+  font: 700 9.5px/1 "Open Sans", sans-serif;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  background: #efe9d9;
+  border: 1.5px solid var(--line);
+  padding: 3px 7px 2px;
+  border-radius: 999px;
+  color: var(--ink);
+}
+
+.rules-card-intro {
+  font: 400 13px/1.45 "Open Sans", sans-serif;
+  color: #3a3429;
+  margin-bottom: 10px;
+}
+
+.rules-ranks-grid {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  margin: 8px 0 12px;
+}
+
+.rules-rank-item {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 6px 10px;
+  border-radius: 8px;
+  border: 1.5px solid var(--line);
+  font-size: 12px;
+}
+
+.rules-rank-item.solved {
+  background: #d1fae5;
+  border-color: #059669;
+}
+
+.rules-rank-item.hot {
+  background: #ffedd5;
+  border-color: #ea580c;
+}
+
+.rules-rank-item.warm {
+  background: #fef3c7;
+  border-color: #d97706;
+}
+
+.rules-rank-item.cool {
+  background: #e0f2fe;
+  border-color: #0284c7;
+}
+
+.rules-rank-item.cold {
+  background: #f1f5f9;
+  border-color: #94a3b8;
+}
+
+.rules-rank-tag {
+  font: 700 10px/1 "Josefin Sans", monospace;
+  letter-spacing: 0.05em;
+  padding: 3px 7px 2px;
+  border-radius: 6px;
+  border: 1px solid currentColor;
+  white-space: nowrap;
+  flex-shrink: 0;
+}
+
+.rules-rank-tag.solved {
+  color: #047857;
+  background: #a7f3d0;
+}
+
+.rules-rank-tag.hot {
+  color: #c2410c;
+  background: #fed7aa;
+}
+
+.rules-rank-tag.warm {
+  color: #b45309;
+  background: #fde68a;
+}
+
+.rules-rank-tag.cool {
+  color: #0369a1;
+  background: #bae6fd;
+}
+
+.rules-rank-tag.cold {
+  color: #475569;
+  background: #e2e8f0;
+}
+
+.rules-rank-info {
+  font: 500 12px/1.3 "Open Sans", sans-serif;
+  color: var(--ink);
+}
+
+.rules-lifeline-desc {
+  font: 400 12px/1.45 "Open Sans", sans-serif;
+  background: #efe9d9;
+  border-left: 3.5px solid var(--gold);
+  padding: 8px 12px;
+  border-radius: 0 8px 8px 0;
+  color: #443c2f;
+  margin-top: 8px;
+}
+
+.rules-list {
+  list-style: disc;
+  margin-left: 18px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  font: 400 12.5px/1.45 "Open Sans", sans-serif;
+  color: #3a3429;
+}
+
+/* ========================================================
+   Word Tennis Captain Selector
+   ======================================================== */
+.tennis-captain-selector {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex-wrap: wrap;
+  padding: 4px 0 6px;
+}
+
+.captain-select-label {
+  font: 700 10.5px/1 "Open Sans", sans-serif;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  opacity: 0.65;
+  margin-right: 2px;
+}
+
+.captain-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  font: 700 11px/1 "Josefin Sans", sans-serif;
+  padding: 5px 10px 4px;
+  border-radius: 999px;
+  border: 1.5px solid var(--line);
+  background: #fbf8ef;
+  color: var(--ink);
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.captain-chip:hover:not(:disabled) {
+  transform: translateY(-1px);
+  background: #fff;
+}
+
+.captain-chip.active {
+  background: var(--ink);
+  color: var(--paper);
+  border-color: var(--ink);
+}
+
+.captain-chip-icon {
+  font-size: 13px;
+}
+
+.captain-chip-name {
+  letter-spacing: 0.02em;
+}
+
+.captain-chip-bounty {
+  font: 600 9.5px/1 "Open Sans", sans-serif;
+  opacity: 0.75;
+  margin-left: 2px;
+}
+
+.captain-chip.active .captain-chip-bounty {
+  color: #fde68a;
+  opacity: 0.95;
+}
+
+/* ========================================================
+   Daily Logbook Quests
+   ======================================================== */
+.daily-quests-section {
+  margin-top: 18px;
+  padding-top: 14px;
+  border-top: 2px dashed rgba(22, 19, 14, 0.2);
+}
+
+.quests-header {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  margin-bottom: 8px;
+}
+
+.quests-section-title {
+  font: 700 12.5px/1 "Josefin Sans", sans-serif;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--gold);
+}
+
+.quests-sub {
+  font: 600 10px/1 "Open Sans", sans-serif;
+  opacity: 0.65;
+  font-style: italic;
+}
+
+.quests-list {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.quest-card {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  background: #fbf8ef;
+  border: 1.5px solid var(--line);
+  border-radius: 12px;
+  padding: 8px 12px;
+  box-shadow: 0 2px 0 0 rgba(22, 19, 14, 0.1);
+  transition: all 0.2s ease;
+}
+
+.quest-card.completed {
+  background: #f0fdf4;
+  border-color: var(--emerald);
+}
+
+.quest-info {
+  flex: 1;
+}
+
+.quest-title {
+  font: 700 12px/1.2 "Josefin Sans", sans-serif;
+  color: var(--ink);
+  letter-spacing: 0.02em;
+}
+
+.quest-desc {
+  font: 400 11px/1.3 "Open Sans", sans-serif;
+  opacity: 0.75;
+  margin: 2px 0 5px;
+}
+
+.quest-progress-track {
+  width: 100%;
+  height: 6px;
+  background: #e2e8f0;
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  overflow: hidden;
+}
+
+.quest-progress-bar {
+  height: 100%;
+  background: var(--gold);
+  border-radius: 999px;
+  transition: width 0.3s ease;
+}
+
+.quest-card.completed .quest-progress-bar {
+  background: var(--emerald);
+}
+
+.quest-progress-text {
+  font: 700 9.5px/1 "Open Sans", monospace;
+  opacity: 0.65;
+  margin-top: 3px;
+}
+
+.quest-action {
+  flex-shrink: 0;
+}
+
+.quest-claim-btn {
+  font: 700 11px/1 "Josefin Sans", sans-serif !important;
+  background: var(--gold) !important;
+  color: #fff !important;
+  padding: 6px 12px 5px !important;
+  border-radius: 999px !important;
+  box-shadow: 0 3px 0 0 var(--line) !important;
+}
+
+.quest-claim-btn:hover {
+  background: #92400e !important;
+  transform: translateY(-1px) !important;
+}
+
+.quest-claimed-badge {
+  font: 700 10.5px/1 "Josefin Sans", sans-serif;
+  color: var(--emerald);
+  background: #dcfce7;
+  border: 1px solid var(--emerald);
+  padding: 3px 8px 2px;
+  border-radius: 999px;
+}
+
+.quest-reward-tag {
+  font: 700 11px/1 "Josefin Sans", sans-serif;
+  color: var(--gold);
+  background: #fef3c7;
+  border: 1px solid var(--gold);
+  padding: 3px 8px 2px;
+  border-radius: 999px;
+}
+
+/* ========================================================
+   Nearest Semantic Concepts Reveal
+   ======================================================== */
+.nearest-reveal-section {
+  background: #fbf8ef;
+  border: 2px dashed rgba(22, 19, 14, 0.25);
+  border-radius: 12px;
+  padding: 10px 14px;
+  margin: 12px 0;
+}
+
+.nearest-reveal-title {
+  font: 700 11px/1 "Open Sans", sans-serif;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--gold);
+  margin-bottom: 8px;
+}
+
+.nearest-reveal-grid {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 6px;
+}
+
+.nearest-neighbor-pill {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  background: #efe9d9;
+  border: 1.5px solid var(--line);
+  border-radius: 8px;
+  padding: 4px 8px;
+  font-size: 11.5px;
+}
+
+.neighbor-rank {
+  font: 700 10px/1 "Josefin Sans", sans-serif;
+  color: var(--gold);
+}
+
+.neighbor-word {
+  font-family: "Goudy Bookletter 1911", serif;
+  font-size: 13.5px;
+  font-weight: 700;
+  color: var(--ink);
+}
+
+.neighbor-sim {
+  font: 700 10px/1 "Open Sans", monospace;
+  color: var(--emerald);
+}
+
+/* ========================================================
+   The Pirate Shipyard Modal
+   ======================================================== */
+.shipyard-dialog {
+  max-width: 600px !important;
+  width: 94% !important;
+  max-height: 86vh;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  padding: 24px 28px !important;
+}
+
+.shipyard-modal-body {
+  overflow-y: auto;
+  max-height: 60vh;
+  padding-right: 6px;
+  margin-bottom: 18px;
+  scrollbar-width: thin;
+}
+
+.shipyard-gold-banner {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  background: #fef3c7;
+  border: 2px solid var(--gold);
+  border-radius: 12px;
+  padding: 8px 16px;
+  margin-bottom: 14px;
+  font: 700 12.5px/1 "Josefin Sans", sans-serif;
+  color: #92400e;
+}
+
+.shipyard-gold-amount {
+  font: 700 15px/1 "Josefin Sans", sans-serif;
+  color: var(--gold);
+}
+
+.shipyard-cat-title {
+  font: 700 13px/1 "Josefin Sans", sans-serif;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--ink);
+  margin-bottom: 8px;
+}
+
+.shipyard-grid {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 10px;
+}
+
+@media (max-width: 600px) {
+  .shipyard-grid {
+    grid-template-columns: 1fr;
+  }
+}
+
+.shipyard-item-card {
+  display: flex;
+  flex-direction: column;
+  background: #fbf8ef;
+  border: 2px solid var(--line);
+  border-radius: 14px;
+  padding: 12px;
+  box-shadow: 0 3px 0 0 var(--line);
+  transition: all 0.2s ease;
+}
+
+.shipyard-item-card.equipped {
+  background: #f0fdf4;
+  border-color: var(--emerald);
+  box-shadow: 0 3px 0 0 var(--emerald);
+}
+
+.shipyard-icon {
+  font-size: 26px;
+  margin-bottom: 4px;
+}
+
+.shipyard-swatch {
+  width: 100%;
+  height: 24px;
+  border-radius: 6px;
+  margin-bottom: 6px;
+}
+
+.shipyard-name {
+  font: 700 13px/1.2 "Josefin Sans", sans-serif;
+  color: var(--ink);
+  letter-spacing: 0.02em;
+}
+
+.shipyard-desc {
+  font: 400 11px/1.35 "Open Sans", sans-serif;
+  opacity: 0.75;
+  margin: 4px 0 10px;
+  flex: 1;
+}
+
+.shipyard-card-footer {
+  margin-top: auto;
+}
+
+.shipyard-badge.equipped {
+  display: inline-block;
+  font: 700 10.5px/1 "Josefin Sans", sans-serif;
+  color: var(--emerald);
+  background: #dcfce7;
+  border: 1.5px solid var(--emerald);
+  padding: 4px 10px 3px;
+  border-radius: 999px;
+  text-align: center;
+  width: 100%;
+  box-sizing: border-box;
+}
+
+.shipyard-btn {
+  width: 100%;
+  font: 700 11px/1 "Josefin Sans", sans-serif;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  padding: 6px 12px 5px;
+  border-radius: 999px;
+  border: 1.5px solid var(--line);
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.shipyard-btn.equip {
+  background: #ece7d8;
+  color: var(--ink);
+}
+
+.shipyard-btn.equip:hover {
+  background: #fff;
+  transform: translateY(-1px);
+}
+
+.shipyard-btn.buy {
+  background: var(--gold);
+  color: #fff;
+  border-color: #92400e;
+  box-shadow: 0 2px 0 0 var(--line);
+}
+
+.shipyard-btn.buy:hover:not(.disabled) {
+  background: #92400e;
+  transform: translateY(-1px);
+}
+
+.shipyard-btn.buy.disabled {
+  background: #e2e8f0;
+  color: #94a3b8;
+  border-color: #cbd5e1;
+  box-shadow: none;
+  cursor: not-allowed;
+}
+
+/* Share Voyage Button & Toast */
+.share-btn {
+  background: #fef3c7 !important;
+  color: #92400e !important;
+  border-color: var(--gold) !important;
+  font-weight: 700 !important;
+}
+
+.share-btn:hover {
+  background: #fde68a !important;
+}
+
+.share-toast-banner {
+  position: fixed;
+  bottom: 24px;
+  left: 50%;
+  transform: translateX(-50%);
+  background: var(--ink);
+  color: var(--paper);
+  font: 700 12px/1 "Josefin Sans", sans-serif;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  padding: 10px 20px 8px;
+  border-radius: 999px;
+  border: 2px solid var(--line);
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.25);
+  z-index: 1000;
+  animation: toastFade 0.3s ease;
+}
+
+@keyframes toastFade {
+  from {
+    opacity: 0;
+    transform: translate(-50%, 10px);
+  }
+  to {
+    opacity: 1;
+    transform: translate(-50%, 0);
+  }
+}
+
 

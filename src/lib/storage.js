@@ -128,3 +128,271 @@ export function saveDailyState(dateStr, state) {
     // ignore
   }
 }
+
+// ========================================================
+// The Shipyard: Flagships & Map Themes
+// ========================================================
+const SHIPYARD_KEY = 'repyt_saltwake_shipyard_v2';
+
+export const SHIPYARD_CATALOG = {
+  ships: [
+    { id: 'sloop', name: 'Swift Sloop', cost: 0, desc: 'Nimble scout vessel for navigating shallow reefs.', code: 'SLOOP' },
+    { id: 'brigantine', name: 'War Brigantine', cost: 100, desc: 'Twin-masted cruiser built for high-seas rallies.', code: 'BRIG' },
+    { id: 'galleon', name: 'Imperial Galleon', cost: 250, desc: 'Gilded three-deck flagship feared across the Seven Seas.', code: 'GALLEON' },
+    { id: 'ghost_ship', name: 'Cursed Phantom', cost: 500, desc: 'Ethereal spectral schooner glowing with eerie green embers.', code: 'PHANTOM' },
+  ],
+  themes: [
+    { id: 'sand', name: 'Sunken Sand', cost: 0, desc: 'Classic sun-bleached parchment nautical map.', bg: '#e6e0cf' },
+    { id: 'storm', name: 'Tempest Gale', cost: 75, desc: 'Slate-washed charts stained by sea mist and spray.', bg: '#d4dcde' },
+    { id: 'midnight', name: 'Midnight Deep', cost: 150, desc: 'Deep indigo navigational star charts of the abyss.', bg: '#c8cbd4' },
+    { id: 'azure', name: 'Caribbean Azure', cost: 200, desc: 'Vibrant turquoise waters and sun-drenched coves.', bg: '#d4ece8' },
+  ]
+};
+
+export function getShipyardData() {
+  if (typeof window === 'undefined') {
+    return {
+      equippedShip: 'sloop',
+      unlockedShips: ['sloop'],
+      equippedTheme: 'sand',
+      unlockedThemes: ['sand'],
+    };
+  }
+  try {
+    const raw = localStorage.getItem(SHIPYARD_KEY);
+    if (!raw) {
+      return {
+        equippedShip: 'sloop',
+        unlockedShips: ['sloop'],
+        equippedTheme: 'sand',
+        unlockedThemes: ['sand'],
+      };
+    }
+    const parsed = JSON.parse(raw);
+    return {
+      equippedShip: parsed.equippedShip || 'sloop',
+      unlockedShips: Array.isArray(parsed.unlockedShips) ? parsed.unlockedShips : ['sloop'],
+      equippedTheme: parsed.equippedTheme || 'sand',
+      unlockedThemes: Array.isArray(parsed.unlockedThemes) ? parsed.unlockedThemes : ['sand'],
+    };
+  } catch (e) {
+    return {
+      equippedShip: 'sloop',
+      unlockedShips: ['sloop'],
+      equippedTheme: 'sand',
+      unlockedThemes: ['sand'],
+    };
+  }
+}
+
+export function saveShipyardData(data) {
+  if (typeof window === 'undefined') return;
+  try {
+    localStorage.setItem(SHIPYARD_KEY, JSON.stringify(data));
+  } catch (e) {
+    // ignore
+  }
+}
+
+export function unlockShipyardItem(type, itemId, cost) {
+  if (typeof window === 'undefined') return { success: false, reason: 'No storage' };
+  const stats = getPlayerStats();
+  if ((stats.doubloons || 0) < cost) {
+    return { success: false, reason: `Need ${cost} Doubloons (you have ${stats.doubloons || 0})` };
+  }
+
+  const current = getShipyardData();
+  const unlockedList = type === 'ship' ? current.unlockedShips : current.unlockedThemes;
+
+  if (unlockedList.includes(itemId)) {
+    return { success: true, alreadyUnlocked: true, shipyard: current, stats };
+  }
+
+  // Deduct doubloons
+  const updatedStats = {
+    ...stats,
+    doubloons: Math.max(0, (stats.doubloons || 0) - cost),
+  };
+  localStorage.setItem(STATS_KEY, JSON.stringify(updatedStats));
+
+  // Add to unlocked
+  const updatedShipyard = {
+    ...current,
+    [type === 'ship' ? 'unlockedShips' : 'unlockedThemes']: [...unlockedList, itemId],
+    [type === 'ship' ? 'equippedShip' : 'equippedTheme']: itemId,
+  };
+  saveShipyardData(updatedShipyard);
+
+  return { success: true, shipyard: updatedShipyard, stats: updatedStats };
+}
+
+export function equipShipyardItem(type, itemId) {
+  const current = getShipyardData();
+  const unlockedList = type === 'ship' ? current.unlockedShips : current.unlockedThemes;
+  if (!unlockedList.includes(itemId)) return current;
+
+  const updated = {
+    ...current,
+    [type === 'ship' ? 'equippedShip' : 'equippedTheme']: itemId,
+  };
+  saveShipyardData(updated);
+  return updated;
+}
+
+// ========================================================
+// Daily Logbook Quests
+// ========================================================
+const QUESTS_KEY = 'repyt_saltwake_quests_v2';
+
+export function getDailyQuests() {
+  if (typeof window === 'undefined') return [];
+  const today = new Date().toISOString().slice(0, 10);
+  try {
+    const raw = localStorage.getItem(QUESTS_KEY);
+    if (raw) {
+      const parsed = JSON.parse(raw);
+      if (parsed.date === today && Array.isArray(parsed.quests)) {
+        return parsed.quests;
+      }
+    }
+  } catch (e) {
+    // ignore
+  }
+
+  // Default initial quests for today
+  const defaultQuests = [
+    {
+      id: 'quest_tennis',
+      title: 'Rally Commander',
+      desc: 'Maintain a 5+ volley rally in Word Tennis',
+      target: 5,
+      current: 0,
+      reward: 30,
+      completed: false,
+      claimed: false,
+    },
+    {
+      id: 'quest_vault',
+      title: 'Master Navigator',
+      desc: 'Unlock the Vault with 3+ leagues remaining',
+      target: 1,
+      current: 0,
+      reward: 50,
+      completed: false,
+      claimed: false,
+    },
+    {
+      id: 'quest_speech',
+      title: 'Sea Chants',
+      desc: 'Pronounce 3 words aloud with audio speech',
+      target: 3,
+      current: 0,
+      reward: 20,
+      completed: false,
+      claimed: false,
+    },
+  ];
+
+  try {
+    localStorage.setItem(QUESTS_KEY, JSON.stringify({ date: today, quests: defaultQuests }));
+  } catch (e) {}
+
+  return defaultQuests;
+}
+
+export function updateQuestProgress(questId, amount = 1) {
+  if (typeof window === 'undefined') return [];
+  const quests = getDailyQuests();
+  const today = new Date().toISOString().slice(0, 10);
+
+  let updated = false;
+  const nextQuests = quests.map((q) => {
+    if (q.id === questId && !q.completed) {
+      const nextVal = Math.min(q.target, q.current + amount);
+      const isDone = nextVal >= q.target;
+      updated = true;
+      return { ...q, current: nextVal, completed: isDone };
+    }
+    return q;
+  });
+
+  if (updated) {
+    try {
+      localStorage.setItem(QUESTS_KEY, JSON.stringify({ date: today, quests: nextQuests }));
+    } catch (e) {}
+  }
+
+  return nextQuests;
+}
+
+export function claimQuestReward(questId) {
+  if (typeof window === 'undefined') return null;
+  const quests = getDailyQuests();
+  const today = new Date().toISOString().slice(0, 10);
+
+  const quest = quests.find((q) => q.id === questId);
+  if (!quest || !quest.completed || quest.claimed) return null;
+
+  const stats = getPlayerStats();
+  const updatedStats = {
+    ...stats,
+    doubloons: (stats.doubloons || 0) + quest.reward,
+  };
+  localStorage.setItem(STATS_KEY, JSON.stringify(updatedStats));
+
+  const nextQuests = quests.map((q) =>
+    q.id === questId ? { ...q, claimed: true } : q
+  );
+
+  try {
+    localStorage.setItem(QUESTS_KEY, JSON.stringify({ date: today, quests: nextQuests }));
+  } catch (e) {}
+
+  return { quests: nextQuests, stats: updatedStats, reward: quest.reward };
+}
+
+// ========================================================
+// Client-Side Proximity Cache (Zero-Latency Instant Results)
+// ========================================================
+const PROXIMITY_CACHE_KEY = 'repyt_saltwake_cache_v2';
+const memoryCache = new Map();
+
+export function getClientProximityCache(target, guess) {
+  const key = `${target.toLowerCase().trim()}:::${guess.toLowerCase().trim()}`;
+  if (memoryCache.has(key)) return memoryCache.get(key);
+
+  if (typeof window === 'undefined') return null;
+  try {
+    const raw = localStorage.getItem(PROXIMITY_CACHE_KEY);
+    if (!raw) return null;
+    const parsed = JSON.parse(raw);
+    if (parsed[key]) {
+      memoryCache.set(key, parsed[key]);
+      return parsed[key];
+    }
+  } catch (e) {
+    // ignore
+  }
+  return null;
+}
+
+export function setClientProximityCache(target, guess, data) {
+  const key = `${target.toLowerCase().trim()}:::${guess.toLowerCase().trim()}`;
+  memoryCache.set(key, data);
+
+  if (typeof window === 'undefined') return;
+  try {
+    const raw = localStorage.getItem(PROXIMITY_CACHE_KEY);
+    const parsed = raw ? JSON.parse(raw) : {};
+    parsed[key] = data;
+
+    // Cap cache entries to 250
+    const keys = Object.keys(parsed);
+    if (keys.length > 250) {
+      delete parsed[keys[0]];
+    }
+    localStorage.setItem(PROXIMITY_CACHE_KEY, JSON.stringify(parsed));
+  } catch (e) {
+    // ignore
+  }
+}
