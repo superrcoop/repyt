@@ -111,13 +111,30 @@ function canFormWord(word, rackLetters) {
   return true;
 }
 
+function shuffleLetters(letters) {
+  const arr = [...letters];
+  for (let i = arr.length - 1; i > 0; i--) {
+    const j = Math.floor(Math.random() * (i + 1));
+    [arr[i], arr[j]] = [arr[j], arr[i]];
+  }
+  // Prevent letters from spelling out original sequence
+  if (arr.join('') === letters.join('') && arr.length > 2) {
+    [arr[0], arr[1]] = [arr[1], arr[0]];
+  }
+  return arr;
+}
+
+function createShuffledRack(rackLetters) {
+  const shuffled = shuffleLetters(rackLetters);
+  return shuffled.map((letter, idx) => ({ id: idx, letter, used: false }));
+}
+
 const FORGE_POOLS = [
   {
     theme: 'Pirates',
-    rack: ['P', 'I', 'R', 'A', 'T', 'E', 'S'],
-    quickSelects: ['PIRATE', 'PIRATES', 'TRAP', 'RIPE', 'PART', 'SPIT', 'STEP', 'STAR', 'PAST', 'TRIP'],
+    rack: ['T', 'S', 'P', 'R', 'A', 'I', 'E'],
     valid: [
-      'PIRATE', 'PIRATES', 'PIER', 'PIERS', 'PRIZE', 'RIPE', 'RIPES', 'TRAP', 'TRAPS',
+      'PIRATE', 'PIRATES', 'PIER', 'PIERS', 'RIPE', 'RIPES', 'TRAP', 'TRAPS',
       'TRIP', 'TRIPS', 'TEAR', 'TEARS', 'PART', 'PARTS', 'SPIT', 'STEP', 'STAR', 'STARE',
       'SPARE', 'PAST', 'PASTE', 'TAPE', 'TAPES', 'RATE', 'RATES', 'SEAT', 'EAST', 'REST',
       'PEST', 'PIE', 'PIES', 'PIT', 'PITS', 'TIP', 'TIPS', 'SIP', 'SIT', 'AIR', 'AIRS',
@@ -128,8 +145,7 @@ const FORGE_POOLS = [
   },
   {
     theme: 'Compass',
-    rack: ['C', 'O', 'M', 'P', 'A', 'S', 'S'],
-    quickSelects: ['COMPASS', 'CAMPS', 'SCAMP', 'MASS', 'PASS', 'SOAP', 'CAMP', 'MAPS', 'MOSS', 'SPAM'],
+    rack: ['S', 'M', 'P', 'C', 'A', 'S', 'O'],
     valid: [
       'COMPASS', 'CAMPS', 'SCAMP', 'MASS', 'PASS', 'SOAP', 'CAMP', 'MAPS', 'MOSS', 'SPAM',
       'COMA', 'SOPS', 'SPAS', 'MACS', 'SCAM', 'SOMA', 'MAP', 'CAP', 'CAPS', 'COP', 'COPS',
@@ -138,27 +154,24 @@ const FORGE_POOLS = [
   },
   {
     theme: 'Galleon',
-    rack: ['G', 'A', 'L', 'L', 'E', 'O', 'N'],
-    quickSelects: ['GALLEON', 'ANGEL', 'GLEAN', 'LANE', 'LOAN', 'GOAL', 'GALL', 'ALONE', 'GALE', 'NOEL'],
+    rack: ['L', 'G', 'E', 'A', 'O', 'N', 'L'],
     valid: [
       'GALLEON', 'ANGEL', 'GLEAN', 'LANE', 'LOAN', 'GOAL', 'GALL', 'LONE', 'LEAN',
-      'ALONE', 'ALL', 'ALE', 'EAGLE', 'LOG', 'LEG', 'LAG', 'ONE', 'EON', 'AGE', 'AGO',
-      'GALE', 'GAOL', 'ALLOY', 'NOEL', 'GLEN', 'ALOE', 'LONE'
+      'ALONE', 'ALL', 'ALE', 'LOG', 'LEG', 'LAG', 'ONE', 'EON', 'AGE', 'AGO',
+      'GALE', 'GAOL', 'NOEL', 'GLEN', 'ALOE'
     ],
   },
   {
     theme: 'Tempest',
-    rack: ['T', 'E', 'M', 'P', 'E', 'S', 'T'],
-    quickSelects: ['TEMPEST', 'MEETS', 'STEEP', 'TEEMS', 'STEM', 'STEP', 'PETS', 'PEST', 'MEET', 'TEST'],
+    rack: ['P', 'E', 'T', 'M', 'S', 'T', 'E'],
     valid: [
       'TEMPEST', 'MEETS', 'STEEP', 'TEEMS', 'STEM', 'STEP', 'PETS', 'PEST', 'MEET', 'TEST',
-      'TEEM', 'SEEP', 'SEEM', 'TEES', 'PET', 'SET', 'SETS', 'SEE', 'SEES', 'MET', 'TEE'
+      'TEEM', 'SEEP', 'SEEM', 'TEES', 'PET', 'SET', 'SEE', 'MET', 'TEE'
     ],
   },
   {
     theme: 'Captain',
-    rack: ['C', 'A', 'P', 'T', 'A', 'I', 'N'],
-    quickSelects: ['CAPTAIN', 'CATNIP', 'PANIC', 'ANTIC', 'PAIN', 'PINT', 'PACT', 'ANTI', 'PITA', 'PANT'],
+    rack: ['N', 'A', 'P', 'C', 'T', 'I', 'A'],
     valid: [
       'CAPTAIN', 'CATNIP', 'PANIC', 'ANTIC', 'PAIN', 'PINT', 'PACT', 'ANTI', 'PITA', 'PANT',
       'CAN', 'CAT', 'CAP', 'PIN', 'PAN', 'TIN', 'TIP', 'TAP', 'PIT', 'PAT', 'ACT', 'ANT', 'NIP', 'TAN'
@@ -166,12 +179,74 @@ const FORGE_POOLS = [
   },
   {
     theme: 'Anchor',
-    rack: ['A', 'N', 'C', 'H', 'O', 'R', 'S'],
-    quickSelects: ['ANCHOR', 'ANCHORS', 'RANCH', 'ACORN', 'ROACH', 'SHORN', 'CRASH', 'ARCH', 'ROAN', 'HORN'],
+    rack: ['R', 'C', 'S', 'A', 'H', 'O', 'N'],
     valid: [
       'ANCHOR', 'ANCHORS', 'RANCH', 'ACORN', 'ROACH', 'SHORN', 'CRASH', 'ARCH', 'ROAN', 'HORN',
-      'HORNS', 'CASH', 'SCAN', 'ROAR', 'SOAR', 'CAR', 'CARS', 'OAR', 'OARS', 'ARC', 'ARCS', 'CAN',
+      'HORNS', 'CASH', 'SCAN', 'SOAR', 'CAR', 'CARS', 'OAR', 'OARS', 'ARC', 'ARCS', 'CAN',
       'CANS', 'RAN', 'ASH', 'SON', 'NOR', 'HAS'
+    ],
+  },
+  {
+    theme: 'Voyages',
+    rack: ['G', 'E', 'Y', 'A', 'V', 'S', 'O'],
+    valid: [
+      'VOYAGE', 'VOYAGES', 'SAGE', 'SAVE', 'GAVE', 'GOES', 'EASY', 'SOYA', 'AGE', 'AGES', 'YES', 'SAY', 'GAS', 'SEA', 'SOY', 'AGO'
+    ],
+  },
+  {
+    theme: 'Corsair',
+    rack: ['R', 'I', 'A', 'S', 'R', 'O', 'C'],
+    valid: [
+      'CORSAIR', 'SCAR', 'ROAR', 'SOAR', 'COIR', 'OARS', 'CARS', 'ARCS', 'AIRS', 'AIR', 'CAR', 'OAR', 'ARC', 'SIR', 'SIC'
+    ],
+  },
+  {
+    theme: 'Islands',
+    rack: ['D', 'S', 'N', 'A', 'L', 'I', 'S'],
+    valid: [
+      'ISLAND', 'ISLANDS', 'SAIL', 'SAILS', 'LAND', 'LANDS', 'SAND', 'SANDS', 'SLID', 'LADS', 'NAIL', 'NAILS', 'AID', 'AIDS', 'AND', 'LAD', 'SIN', 'SINS'
+    ],
+  },
+  {
+    theme: 'Harbors',
+    rack: ['B', 'O', 'R', 'H', 'A', 'S', 'R'],
+    valid: [
+      'HARBOR', 'HARBORS', 'ROAR', 'ROARS', 'BOAR', 'BOARS', 'SOAR', 'BARS', 'RASH', 'BAR', 'OAR', 'OARS', 'ASH', 'SOB'
+    ],
+  },
+  {
+    theme: 'Sailors',
+    rack: ['O', 'S', 'L', 'I', 'A', 'S', 'R'],
+    valid: [
+      'SAILOR', 'SAILORS', 'SAIL', 'SAILS', 'SOLAR', 'SOAR', 'SOIL', 'SOILS', 'OARS', 'LASS', 'AIRS', 'SIR', 'SIRS', 'OIL', 'OILS', 'AIR', 'OAR'
+    ],
+  },
+  {
+    theme: 'Mariner',
+    rack: ['N', 'E', 'R', 'R', 'A', 'M', 'I'],
+    valid: [
+      'MARINER', 'MARINE', 'MINER', 'REARM', 'MAIN', 'MINE', 'RAIN', 'REIN', 'RARE', 'RAM', 'MAN', 'MEN', 'RIM', 'RIME', 'EAR', 'ERA', 'AIR'
+    ],
+  },
+  {
+    theme: 'Krakens',
+    rack: ['N', 'A', 'E', 'K', 'S', 'K', 'R'],
+    valid: [
+      'KRAKEN', 'KRAKENS', 'SNAKE', 'SNARE', 'RANK', 'RANKS', 'EARN', 'EARNS', 'NEAR', 'RAKE', 'RAKES', 'ARK', 'ARKS', 'SEA', 'ERA', 'ASK'
+    ],
+  },
+  {
+    theme: 'Beacons',
+    rack: ['C', 'O', 'S', 'B', 'A', 'E', 'N'],
+    valid: [
+      'BEACON', 'BEACONS', 'BACON', 'BACONS', 'BANE', 'BEANS', 'BEAN', 'CANES', 'CANE', 'CONE', 'CONES', 'BONE', 'BONES', 'BASE', 'NOSE', 'ONE', 'ONES', 'CAN', 'CAB', 'BAN', 'SEA', 'SON'
+    ],
+  },
+  {
+    theme: 'Lagoons',
+    rack: ['O', 'S', 'G', 'A', 'N', 'L', 'O'],
+    valid: [
+      'LAGOON', 'LAGOONS', 'LOAN', 'LOANS', 'LOGO', 'LOGOS', 'GOAL', 'GOALS', 'SOLO', 'SONG', 'LOG', 'LOGS', 'SAG', 'SOON', 'GAS', 'NAG'
     ],
   },
 ];
@@ -732,14 +807,14 @@ export default function RepytGame() {
       : Math.floor(Math.random() * FORGE_POOLS.length);
     const pool = FORGE_POOLS[idx];
     setForgePoolIndex(idx);
-    setForgeRack(pool.rack.map((letter, i) => ({ id: i, letter, used: false })));
+    setForgeRack(createShuffledRack(pool.rack));
     setForgeAssembled([]);
     setForgeStreak(0);
     setForgeScore(0);
     setForgeWords([]);
     setForgeTimer(60);
     setForgeActive(true);
-    setForgeBanter(`Forge shift begun with ${pool.theme}! Tap tiles or quick selects.`);
+    setForgeBanter(`Forge shift begun with ${pool.theme}! Tap rack tiles or type to forge words.`);
     sound.shipBell();
   };
 
@@ -795,6 +870,20 @@ export default function RepytGame() {
     sound.tick();
   };
 
+  const handleForgeNextWord = () => {
+    if (!forgeActive) return;
+    let nextIdx = Math.floor(Math.random() * FORGE_POOLS.length);
+    if (FORGE_POOLS.length > 1 && nextIdx === forgePoolIndex) {
+      nextIdx = (nextIdx + 1) % FORGE_POOLS.length;
+    }
+    const nextPool = FORGE_POOLS[nextIdx];
+    setForgePoolIndex(nextIdx);
+    setForgeRack(createShuffledRack(nextPool.rack));
+    setForgeAssembled([]);
+    setForgeBanter(`Auto-shuffled to ${nextPool.theme}! Forge words from the new rack.`);
+    sound.tick();
+  };
+
   const executeForgeWord = (wordOverride) => {
     if (!forgeActive) return;
     const currentPool = FORGE_POOLS[forgePoolIndex];
@@ -820,7 +909,7 @@ export default function RepytGame() {
       return;
     }
 
-    const isValid = currentPool.valid.includes(candidate) || currentPool.quickSelects.includes(candidate);
+    const isValid = currentPool.valid.includes(candidate);
     if (!isValid) {
       sound.error();
       setForgeBanter(`"${candidate}" is not in the nautical lexicon.`);
@@ -849,15 +938,19 @@ export default function RepytGame() {
       setDailyQuests(updatedQ);
     }
 
+    // Auto-shuffle to the next word pool for continuous fresh challenge
+    let nextIdx = Math.floor(Math.random() * FORGE_POOLS.length);
+    if (FORGE_POOLS.length > 1 && nextIdx === forgePoolIndex) {
+      nextIdx = (nextIdx + 1) % FORGE_POOLS.length;
+    }
+    const nextPool = FORGE_POOLS[nextIdx];
+    setForgePoolIndex(nextIdx);
+    setForgeRack(createShuffledRack(nextPool.rack));
+    setForgeAssembled([]);
     setForgeStreak(nextStreak);
     setForgeScore(nextScore);
     setForgeWords((prev) => [{ word: candidate, points: earned }, ...prev]);
-    setForgeBanter(`Splendid! "${candidate}" forged for +${earned} pts!`);
-    handleForgeClear();
-  };
-
-  const handleQuickForge = (word) => {
-    executeForgeWord(word);
+    setForgeBanter(`Splendid! "${candidate}" forged for +${earned} pts! Auto-shuffled to ${nextPool.theme}.`);
   };
 
   const handleForgeTimeout = useCallback(() => {
@@ -1374,27 +1467,6 @@ export default function RepytGame() {
                   <span>Join letters from your rack to forge words (3+ letters). Tap tiles or type!</span>
                 </div>
 
-                {/* Quick Selects Anagram Chips */}
-                <div className="forge-quick-selects">
-                  <span className="starter-label">Quick Selects:</span>
-                  {FORGE_POOLS[forgePoolIndex].quickSelects.map((word) => {
-                    const isForged = forgeWords.some((w) => w.word === word);
-                    return (
-                      <button
-                        key={word}
-                        type="button"
-                        className={`starter-chip forge-quick-chip ${isForged ? 'forged' : 'unforged'}`}
-                        onClick={() => !isForged && handleQuickForge(word)}
-                        disabled={!forgeActive || isForged}
-                        title={isForged ? `Forged: ${word}` : `Quick Forge "${word}"`}
-                      >
-                        <span className="chip-word">{word}</span>
-                        {isForged && <span className="chip-forged-tag">Forged</span>}
-                      </button>
-                    );
-                  })}
-                </div>
-
                 {/* Assembled Word Anvil */}
                 <div className="forge-assembled-box">
                   <div className="assembled-tiles-row">
@@ -1451,6 +1523,20 @@ export default function RepytGame() {
                       <line x1="4" y1="4" x2="9" y2="9" />
                     </svg>
                     <span>Shuffle</span>
+                  </button>
+
+                  <button
+                    type="button"
+                    className="icon-pill-btn forge-control-btn"
+                    onClick={handleForgeNextWord}
+                    disabled={!forgeActive}
+                    title="Auto-shuffle to next word challenge"
+                  >
+                    <svg className="icon-svg" viewBox="0 0 24 24">
+                      <polygon points="5 4 15 12 5 20 5 4" />
+                      <line x1="19" y1="5" x2="19" y2="19" />
+                    </svg>
+                    <span>Next Word</span>
                   </button>
 
                   <button
@@ -1787,7 +1873,7 @@ export default function RepytGame() {
             <ul className="rules-list">
               <li><strong>60-Second Shift:</strong> Normal mode round timer. Forge as many words as possible!</li>
               <li><strong>Letter Joining:</strong> Click rack tiles or type on your keyboard to assemble words (3+ letters).</li>
-              <li><strong>Quick Selects:</strong> Instant anagram chips are available to click and forge with zero delay.</li>
+              <li><strong>Auto-Shuffle:</strong> Letters are automatically scrambled to challenge your eye. Successfully forging a word immediately loads fresh scrambled tiles!</li>
               <li><strong>Word Scoring:</strong> 3 letters = 30 pts, 4 letters = 60 pts, 5 letters = 100 pts, 6 letters = 160 pts, 7+ letters = 260 pts!</li>
               <li><strong>Streaks &amp; Doubloons:</strong> Multipliers boost your score and earn gold doubloons for your logbook.</li>
             </ul>
