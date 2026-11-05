@@ -97,6 +97,85 @@ function yAt(l, x, t, p, L) {
   return base + a * Math.sin(f * x + t * l.v + l.ph) + a * 0.45 * Math.sin(f * 2.3 * x - t * l.v * 0.7 + l.ph * 1.7);
 }
 
+function canFormWord(word, rackLetters) {
+  if (!word || word.length < 3) return false;
+  const counts = {};
+  for (const l of rackLetters) {
+    const ch = l.toUpperCase();
+    counts[ch] = (counts[ch] || 0) + 1;
+  }
+  for (const ch of word.toUpperCase()) {
+    if (!counts[ch]) return false;
+    counts[ch]--;
+  }
+  return true;
+}
+
+const FORGE_POOLS = [
+  {
+    theme: 'Pirates',
+    rack: ['P', 'I', 'R', 'A', 'T', 'E', 'S'],
+    quickSelects: ['PIRATE', 'PIRATES', 'TRAP', 'RIPE', 'PART', 'SPIT', 'STEP', 'STAR', 'PAST', 'TRIP'],
+    valid: [
+      'PIRATE', 'PIRATES', 'PIER', 'PIERS', 'PRIZE', 'RIPE', 'RIPES', 'TRAP', 'TRAPS',
+      'TRIP', 'TRIPS', 'TEAR', 'TEARS', 'PART', 'PARTS', 'SPIT', 'STEP', 'STAR', 'STARE',
+      'SPARE', 'PAST', 'PASTE', 'TAPE', 'TAPES', 'RATE', 'RATES', 'SEAT', 'EAST', 'REST',
+      'PEST', 'PIE', 'PIES', 'PIT', 'PITS', 'TIP', 'TIPS', 'SIP', 'SIT', 'AIR', 'AIRS',
+      'ART', 'ARTS', 'TAR', 'TARS', 'EAR', 'EARS', 'EAT', 'EATS', 'TEA', 'TEAS', 'SEA',
+      'SET', 'PET', 'PETS', 'RAP', 'RAPS', 'RIP', 'RIPS', 'SAP', 'APE', 'APES', 'APT',
+      'PAT', 'PATS', 'TAP', 'TAPS', 'SPAT', 'STIR', 'STRIP', 'TRIPE', 'TRIPES', 'PRAISE'
+    ],
+  },
+  {
+    theme: 'Compass',
+    rack: ['C', 'O', 'M', 'P', 'A', 'S', 'S'],
+    quickSelects: ['COMPASS', 'CAMPS', 'SCAMP', 'MASS', 'PASS', 'SOAP', 'CAMP', 'MAPS', 'MOSS', 'SPAM'],
+    valid: [
+      'COMPASS', 'CAMPS', 'SCAMP', 'MASS', 'PASS', 'SOAP', 'CAMP', 'MAPS', 'MOSS', 'SPAM',
+      'COMA', 'SOPS', 'SPAS', 'MACS', 'SCAM', 'SOMA', 'MAP', 'CAP', 'CAPS', 'COP', 'COPS',
+      'MOP', 'MOPS', 'SAP', 'SAPS', 'SOP', 'SPA', 'AMP', 'AMPS', 'CAM', 'CAMS'
+    ],
+  },
+  {
+    theme: 'Galleon',
+    rack: ['G', 'A', 'L', 'L', 'E', 'O', 'N'],
+    quickSelects: ['GALLEON', 'ANGEL', 'GLEAN', 'LANE', 'LOAN', 'GOAL', 'GALL', 'ALONE', 'GALE', 'NOEL'],
+    valid: [
+      'GALLEON', 'ANGEL', 'GLEAN', 'LANE', 'LOAN', 'GOAL', 'GALL', 'LONE', 'LEAN',
+      'ALONE', 'ALL', 'ALE', 'EAGLE', 'LOG', 'LEG', 'LAG', 'ONE', 'EON', 'AGE', 'AGO',
+      'GALE', 'GAOL', 'ALLOY', 'NOEL', 'GLEN', 'ALOE', 'LONE'
+    ],
+  },
+  {
+    theme: 'Tempest',
+    rack: ['T', 'E', 'M', 'P', 'E', 'S', 'T'],
+    quickSelects: ['TEMPEST', 'MEETS', 'STEEP', 'TEEMS', 'STEM', 'STEP', 'PETS', 'PEST', 'MEET', 'TEST'],
+    valid: [
+      'TEMPEST', 'MEETS', 'STEEP', 'TEEMS', 'STEM', 'STEP', 'PETS', 'PEST', 'MEET', 'TEST',
+      'TEEM', 'SEEP', 'SEEM', 'TEES', 'PET', 'SET', 'SETS', 'SEE', 'SEES', 'MET', 'TEE'
+    ],
+  },
+  {
+    theme: 'Captain',
+    rack: ['C', 'A', 'P', 'T', 'A', 'I', 'N'],
+    quickSelects: ['CAPTAIN', 'CATNIP', 'PANIC', 'ANTIC', 'PAIN', 'PINT', 'PACT', 'ANTI', 'PITA', 'PANT'],
+    valid: [
+      'CAPTAIN', 'CATNIP', 'PANIC', 'ANTIC', 'PAIN', 'PINT', 'PACT', 'ANTI', 'PITA', 'PANT',
+      'CAN', 'CAT', 'CAP', 'PIN', 'PAN', 'TIN', 'TIP', 'TAP', 'PIT', 'PAT', 'ACT', 'ANT', 'NIP', 'TAN'
+    ],
+  },
+  {
+    theme: 'Anchor',
+    rack: ['A', 'N', 'C', 'H', 'O', 'R', 'S'],
+    quickSelects: ['ANCHOR', 'ANCHORS', 'RANCH', 'ACORN', 'ROACH', 'SHORN', 'CRASH', 'ARCH', 'ROAN', 'HORN'],
+    valid: [
+      'ANCHOR', 'ANCHORS', 'RANCH', 'ACORN', 'ROACH', 'SHORN', 'CRASH', 'ARCH', 'ROAN', 'HORN',
+      'HORNS', 'CASH', 'SCAN', 'ROAR', 'SOAR', 'CAR', 'CARS', 'OAR', 'OARS', 'ARC', 'ARCS', 'CAN',
+      'CANS', 'RAN', 'ASH', 'SON', 'NOR', 'HAS'
+    ],
+  },
+];
+
 export default function RepytGame() {
   // Navigation & Scene state
   const [sceneIndex, setSceneIndex] = useState(0); // 0 = Sea (Hero), 1 = Island (Vault)
@@ -136,27 +215,25 @@ export default function RepytGame() {
     incorrectRef.current = incorrectGuesses;
   }, [incorrectGuesses]);
 
-  // Active Game Mode: 'vault' | 'tennis'
+  // Active Game Mode: 'vault' | 'forge'
   const [activeTab, setActiveTab] = useState('vault');
 
-  // Word Tennis (Repyt Chain) Game State
-  const [tennisActive, setTennisActive] = useState(false);
-  const [tennisWord, setTennisWord] = useState('Ocean');
-  const [tennisInput, setTennisInput] = useState('');
-  const [tennisTimer, setTennisTimer] = useState(15);
-  const [tennisStreak, setTennisStreak] = useState(0);
-  const [tennisScore, setTennisScore] = useState(0);
-  const [tennisEvaluating, setTennisEvaluating] = useState(false);
-  const [tennisBanter, setTennisBanter] = useState(
-    'AI serves the opening word. Return an associative word within 15 seconds!'
+  // Word Forge (Letter Joining) Game State - normal mode default
+  const [forgePoolIndex, setForgePoolIndex] = useState(0);
+  const [forgeRack, setForgeRack] = useState(() =>
+    FORGE_POOLS[0].rack.map((letter, idx) => ({ id: idx, letter, used: false }))
   );
-  const [tennisHistory, setTennisHistory] = useState([]);
-  const [tennisResult, setTennisResult] = useState(null);
-  const tennisInputRef = useRef(null);
-  const tennisGameOverDialogRef = useRef(null);
-
-  // Selectable AI Captains in Word Tennis: 'barnaby' | 'siren' | 'blackbeard'
-  const [tennisCaptain, setTennisCaptain] = useState('siren');
+  const [forgeAssembled, setForgeAssembled] = useState([]);
+  const [forgeActive, setForgeActive] = useState(false);
+  const [forgeTimer, setForgeTimer] = useState(60);
+  const [forgeStreak, setForgeStreak] = useState(0);
+  const [forgeScore, setForgeScore] = useState(0);
+  const [forgeWords, setForgeWords] = useState([]);
+  const [forgeBanter, setForgeBanter] = useState(
+    'Tap letter tiles from your rack or type to forge words. 3+ letters!'
+  );
+  const [forgeResult, setForgeResult] = useState(null);
+  const forgeGameOverDialogRef = useRef(null);
 
   // Daily Quests
   const [dailyQuests, setDailyQuests] = useState([]);
@@ -225,6 +302,30 @@ export default function RepytGame() {
       .then((data) => {
         if (data && data.category) {
           setDailyClue(data);
+          const targetKey = data.targetWord || data.category || 'Daily';
+          if (Array.isArray(data.quickSelects)) {
+            data.quickSelects.forEach((item) => {
+              const itemData = {
+                guess: item.word,
+                rank: item.rank,
+                similarity: item.similarity,
+                bearing: item.rank <= 300
+                  ? 'Direct Heading: Core Attribute / Direct Synonym'
+                  : item.rank <= 1500
+                  ? 'On Course: Shared Domain & Conceptual Field'
+                  : item.rank <= 4000
+                  ? 'Drifting: Loose / Tangential Association'
+                  : 'Opposite Heading: Unrelated Semantic Domain',
+                solved: item.rank === 1,
+                temperature: item.rank <= 300 ? 'Burning Hot' : item.rank <= 1500 ? 'Warm' : item.rank <= 4000 ? 'Cool' : 'Freezing',
+                color: item.rank <= 300 ? 'rose' : item.rank <= 1500 ? 'amber' : item.rank <= 4000 ? 'sky' : 'slate',
+                icon: '',
+                hint: item.rank <= 300 ? 'Burning hot bearing!' : 'Keep exploring along this train of thought.',
+                mode: 'precomputed_instant',
+              };
+              setClientProximityCache(targetKey, item.word, itemData);
+            });
+          }
         }
       })
       .catch((err) => console.warn('Could not load daily clue:', err));
@@ -298,7 +399,7 @@ export default function RepytGame() {
     if (tr.pTo === target) return;
 
     if (target === 0) {
-      setTennisActive(false);
+      setForgeActive(false);
     }
 
     tr.pFrom = tr.p;
@@ -309,8 +410,11 @@ export default function RepytGame() {
   }, []);
 
   const handleTabSwitch = useCallback((tab) => {
-    if (tab !== 'tennis') {
-      setTennisActive(false);
+    if (tab !== 'forge') {
+      setForgeActive(false);
+    } else {
+      setForgeActive(true);
+      setForgeTimer(60);
     }
     setActiveTab(tab);
   }, []);
@@ -614,55 +718,175 @@ export default function RepytGame() {
     setSpeechFeedback(`Heard: "${spokenWord}"`);
     setTimeout(() => setSpeechFeedback(''), 3000);
 
-    if (activeTab === 'tennis') {
-      setTennisInput(spokenWord);
-      executeTennisVolley(spokenWord);
+    if (activeTab === 'forge') {
+      executeForgeWord(spokenWord);
     } else {
       setClimbInput(spokenWord);
       executeClimbGuess(spokenWord);
     }
   };
 
-  const getInitialTimer = (captain) => {
-    if (captain === 'barnaby') return 20;
-    if (captain === 'blackbeard') return 10;
-    return 15;
+  const startForgeGame = (poolIdx) => {
+    const idx = poolIdx !== undefined
+      ? poolIdx
+      : Math.floor(Math.random() * FORGE_POOLS.length);
+    const pool = FORGE_POOLS[idx];
+    setForgePoolIndex(idx);
+    setForgeRack(pool.rack.map((letter, i) => ({ id: i, letter, used: false })));
+    setForgeAssembled([]);
+    setForgeStreak(0);
+    setForgeScore(0);
+    setForgeWords([]);
+    setForgeTimer(60);
+    setForgeActive(true);
+    setForgeBanter(`Forge shift begun with ${pool.theme}! Tap tiles or quick selects.`);
+    sound.shipBell();
   };
 
-  const getCaptainMultiplier = (captain) => {
-    if (captain === 'blackbeard') return 2.0;
-    if (captain === 'siren') return 1.5;
-    return 1.0;
+  const handleTileClick = (tile) => {
+    if (!forgeActive || tile.used) return;
+    setForgeRack((prev) =>
+      prev.map((t) => (t.id === tile.id ? { ...t, used: true } : t))
+    );
+    setForgeAssembled((prev) => [...prev, { id: tile.id, letter: tile.letter }]);
+    sound.tick();
   };
 
-  const handleTennisTimeout = useCallback(() => {
+  const handleAssembledTileClick = (index) => {
+    const tileToRemove = forgeAssembled[index];
+    if (!tileToRemove) return;
+    setForgeAssembled((prev) => prev.filter((_, idx) => idx !== index));
+    setForgeRack((prev) =>
+      prev.map((t) => (t.id === tileToRemove.id ? { ...t, used: false } : t))
+    );
+    sound.tick();
+  };
+
+  const handleForgeBackspace = () => {
+    if (forgeAssembled.length === 0) return;
+    const lastTile = forgeAssembled[forgeAssembled.length - 1];
+    setForgeAssembled((prev) => prev.slice(0, -1));
+    setForgeRack((prev) =>
+      prev.map((t) => (t.id === lastTile.id ? { ...t, used: false } : t))
+    );
+    sound.tick();
+  };
+
+  const handleForgeClear = () => {
+    setForgeAssembled([]);
+    setForgeRack((prev) => prev.map((t) => ({ ...t, used: false })));
+  };
+
+  const handleForgeShuffle = () => {
+    setForgeRack((prev) => {
+      const unusedLetters = prev.filter((t) => !t.used).map((t) => t.letter);
+      for (let i = unusedLetters.length - 1; i > 0; i--) {
+        const j = Math.floor(Math.random() * (i + 1));
+        [unusedLetters[i], unusedLetters[j]] = [unusedLetters[j], unusedLetters[i]];
+      }
+      let uIdx = 0;
+      return prev.map((t) => {
+        if (!t.used) {
+          return { ...t, letter: unusedLetters[uIdx++] };
+        }
+        return t;
+      });
+    });
+    sound.tick();
+  };
+
+  const executeForgeWord = (wordOverride) => {
+    if (!forgeActive) return;
+    const currentPool = FORGE_POOLS[forgePoolIndex];
+    const candidate = (
+      wordOverride || forgeAssembled.map((t) => t.letter).join('')
+    ).toUpperCase().trim();
+
+    if (!candidate || candidate.length < 3) {
+      sound.error();
+      setForgeBanter('Words must be at least 3 letters long!');
+      return;
+    }
+
+    if (forgeWords.some((w) => w.word === candidate)) {
+      sound.error();
+      setForgeBanter(`"${candidate}" is already forged in this shift!`);
+      return;
+    }
+
+    if (!canFormWord(candidate, currentPool.rack)) {
+      sound.error();
+      setForgeBanter(`Cannot forge "${candidate}" with your current rack!`);
+      return;
+    }
+
+    const isValid = currentPool.valid.includes(candidate) || currentPool.quickSelects.includes(candidate);
+    if (!isValid) {
+      sound.error();
+      setForgeBanter(`"${candidate}" is not in the nautical lexicon.`);
+      return;
+    }
+
+    let basePts = 30;
+    if (candidate.length === 4) basePts = 60;
+    else if (candidate.length === 5) basePts = 100;
+    else if (candidate.length === 6) basePts = 160;
+    else if (candidate.length >= 7) basePts = 260;
+
+    const multiplier = 1 + Math.floor(forgeStreak / 4) * 0.5;
+    const earned = Math.round(basePts * multiplier);
+    const nextStreak = forgeStreak + 1;
+    const nextScore = forgeScore + earned;
+
+    sound.correct(nextStreak);
+    if (candidate.length >= 6 || nextStreak % 5 === 0) {
+      sound.streak();
+      triggerConfetti({ particleCount: 75, spread: 65, origin: { y: 0.6 } });
+    }
+
+    if (forgeWords.length + 1 >= 5) {
+      const updatedQ = updateQuestProgress('quest_forge', 1);
+      setDailyQuests(updatedQ);
+    }
+
+    setForgeStreak(nextStreak);
+    setForgeScore(nextScore);
+    setForgeWords((prev) => [{ word: candidate, points: earned }, ...prev]);
+    setForgeBanter(`Splendid! "${candidate}" forged for +${earned} pts!`);
+    handleForgeClear();
+  };
+
+  const handleQuickForge = (word) => {
+    executeForgeWord(word);
+  };
+
+  const handleForgeTimeout = useCallback(() => {
     sound.gameOver();
-    setTennisActive(false);
-    const captainMult = getCaptainMultiplier(tennisCaptain);
-    const earnedDoubloons = Math.floor((tennisScore / 10) * captainMult);
-    const updated = recordChainGame(tennisScore, tennisStreak, tennisHistory.length, earnedDoubloons);
+    setForgeActive(false);
+    const earnedDoubloons = Math.floor(forgeScore / 10);
+    const updated = recordChainGame(forgeScore, forgeStreak, forgeWords.length, earnedDoubloons);
     if (updated) setStats(updated);
 
-    const clockName = tennisCaptain === 'blackbeard' ? '10' : tennisCaptain === 'barnaby' ? '20' : '15';
-    setTennisResult({
-      score: tennisScore,
-      streak: tennisStreak,
-      wordsCount: tennisHistory.length,
+    setForgeResult({
+      score: forgeScore,
+      streak: forgeStreak,
+      wordsCount: forgeWords.length,
       earnedDoubloons,
-      reason: `${clockName}-second volley clock expired!`
+      wordsList: forgeWords,
+      reason: '60-second forge timer has elapsed!'
     });
-    setTennisBanter('Time expired! The volley dropped into the sea.');
-    openDialog(tennisGameOverDialogRef);
-  }, [tennisCaptain, tennisScore, tennisStreak, tennisHistory.length]);
+    setForgeBanter('Time expired! The forge fire has settled.');
+    openDialog(forgeGameOverDialogRef);
+  }, [forgeScore, forgeStreak, forgeWords]);
 
-  // Word Tennis Volley Countdown Timer - strictly isolated to active tennis mode
+  // Word Forge 60s countdown timer
   useEffect(() => {
-    if (activeTab !== 'tennis' || sceneIndex !== 1 || !tennisActive || tennisEvaluating) {
+    if (activeTab !== 'forge' || sceneIndex !== 1 || !forgeActive) {
       return;
     }
 
     const interval = setInterval(() => {
-      setTennisTimer((prev) => {
+      setForgeTimer((prev) => {
         if (prev <= 1) {
           clearInterval(interval);
           return 0;
@@ -675,117 +899,48 @@ export default function RepytGame() {
     }, 1000);
 
     return () => clearInterval(interval);
-  }, [activeTab, sceneIndex, tennisActive, tennisEvaluating]);
+  }, [activeTab, sceneIndex, forgeActive]);
 
-  // Safe timeout trigger when clock reaches 0 in Tennis mode
   useEffect(() => {
-    if (activeTab === 'tennis' && sceneIndex === 1 && tennisActive && !tennisEvaluating && tennisTimer === 0) {
-      handleTennisTimeout();
+    if (activeTab === 'forge' && sceneIndex === 1 && forgeActive && forgeTimer === 0) {
+      handleForgeTimeout();
     }
-  }, [tennisTimer, activeTab, sceneIndex, tennisActive, tennisEvaluating, handleTennisTimeout]);
+  }, [forgeTimer, activeTab, sceneIndex, forgeActive, handleForgeTimeout]);
 
-  const startTennisGame = () => {
-    const starterWords = ['Ocean', 'Galaxy', 'Horizon', 'Phoenix', 'Tempest', 'Compass', 'Solar', 'Voyage'];
-    const initial = starterWords[Math.floor(Math.random() * starterWords.length)];
-    const initTimer = getInitialTimer(tennisCaptain);
-    setTennisWord(initial);
-    setTennisStreak(0);
-    setTennisScore(0);
-    setTennisHistory([]);
-    setTennisTimer(initTimer);
-    setTennisActive(true);
-    setTennisBanter(`Opponent serves "${initial}"! Return an associative word quickly!`);
-    sound.shipBell();
-    setTimeout(() => {
-      tennisInputRef.current?.focus();
-    }, 200);
-  };
+  // Keyboard controls for Word Forge
+  useEffect(() => {
+    if (activeTab !== 'forge' || sceneIndex !== 1 || !forgeActive) return;
 
-  const executeTennisVolley = async (wordToPlay) => {
-    const play = (wordToPlay || tennisInput || '').trim();
-    if (!play || !tennisActive || tennisEvaluating) return;
+    const onKeyDown = (e) => {
+      if (e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA') return;
+      if (typeof document !== 'undefined' && document.documentElement.classList.contains('has-modal')) return;
 
-    setTennisInput('');
-    setTennisEvaluating(true);
-
-    try {
-      const res = await fetch('/api/word-chain', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          currentWord: tennisWord,
-          playerWord: play,
-          history: tennisHistory.flatMap((h) => [h.playerWord, h.counterWord]),
-          theme: 'nautical',
-          captain: tennisCaptain,
-        }),
-      });
-
-      const data = await res.json();
-
-      if (data.valid) {
-        const nextStreak = tennisStreak + 1;
-        const multiplier = 1 + Math.floor(tennisStreak / 5) * 0.5;
-        const roundScore = Math.round((data.score || 50) * multiplier);
-        const nextScore = tennisScore + roundScore;
-
-        sound.correct(nextStreak);
-        if (nextStreak % 5 === 0) {
-          sound.streak();
-          triggerConfetti({ particleCount: 80, spread: 70, origin: { y: 0.6 } });
+      const key = e.key;
+      if (/^[a-zA-Z]$/.test(key)) {
+        const upper = key.toUpperCase();
+        const availableTile = forgeRack.find((t) => t.letter === upper && !t.used);
+        if (availableTile) {
+          e.preventDefault();
+          handleTileClick(availableTile);
         }
-
-        // Daily Quest: Rally Commander (5+ volleys)
-        if (nextStreak >= 5) {
-          const updatedQ = updateQuestProgress('quest_tennis', 1);
-          setDailyQuests(updatedQ);
-        }
-
-        setTennisStreak(nextStreak);
-        setTennisScore(nextScore);
-        setTennisWord(data.counterWord || 'Pulse');
-        setTennisBanter(data.banter || 'Sharp return!');
-        setTennisHistory((prev) => [
-          {
-            servedWord: tennisWord,
-            playerWord: play,
-            counterWord: data.counterWord,
-            score: roundScore,
-            banter: data.banter,
-          },
-          ...prev,
-        ]);
-
-        const baseClock = getInitialTimer(tennisCaptain);
-        const minClock = tennisCaptain === 'blackbeard' ? 6 : tennisCaptain === 'barnaby' ? 12 : 9;
-        const nextTimer = Math.max(minClock, baseClock - Math.floor(nextStreak / 4));
-        setTennisTimer(nextTimer);
-      } else {
-        sound.error();
-        setTennisActive(false);
-        const captainMult = getCaptainMultiplier(tennisCaptain);
-        const earnedDoubloons = Math.floor((tennisScore / 10) * captainMult);
-        const updated = recordChainGame(tennisScore, tennisStreak, tennisHistory.length, earnedDoubloons);
-        if (updated) setStats(updated);
-
-        setTennisResult({
-          score: tennisScore,
-          streak: tennisStreak,
-          wordsCount: tennisHistory.length,
-          earnedDoubloons,
-          reason: data.reason || 'Invalid word association or repeat!'
-        });
-        setTennisBanter(data.banter || 'Foul return! Rally ended.');
-        openDialog(tennisGameOverDialogRef);
+      } else if (key === 'Backspace') {
+        e.preventDefault();
+        handleForgeBackspace();
+      } else if (key === 'Enter') {
+        e.preventDefault();
+        executeForgeWord();
+      } else if (key === ' ') {
+        e.preventDefault();
+        handleForgeShuffle();
+      } else if (key === 'Escape') {
+        e.preventDefault();
+        handleForgeClear();
       }
-    } catch (err) {
-      console.error(err);
-      sound.error();
-      setTennisBanter('The referee faltered. Try your return once more.');
-    } finally {
-      setTennisEvaluating(false);
-    }
-  };
+    };
+
+    window.addEventListener('keydown', onKeyDown);
+    return () => window.removeEventListener('keydown', onKeyDown);
+  }, [activeTab, sceneIndex, forgeActive, forgeRack, forgeAssembled]);
 
   // 6. Speech Pronunciation Teaching Action
   const pronounceWord = (word) => {
@@ -865,6 +1020,33 @@ export default function RepytGame() {
 
     // Zero-Latency Local Cache Check
     const targetWord = dailyClue.category ? (dailyClue.targetWord || dailyClue.category) : 'Daily';
+
+    // Zero-Latency Quick Select Match
+    const quickMatch = dailyClue.quickSelects?.find((q) => q.word.toLowerCase() === guess.toLowerCase());
+    if (quickMatch) {
+      const instantData = {
+        guess: quickMatch.word,
+        rank: quickMatch.rank,
+        similarity: quickMatch.similarity,
+        bearing: quickMatch.rank <= 300
+          ? 'Direct Heading: Core Attribute / Direct Synonym'
+          : quickMatch.rank <= 1500
+          ? 'On Course: Shared Domain & Conceptual Field'
+          : quickMatch.rank <= 4000
+          ? 'Drifting: Loose / Tangential Association'
+          : 'Opposite Heading: Unrelated Semantic Domain',
+        solved: quickMatch.rank === 1,
+        temperature: quickMatch.rank <= 300 ? 'Burning Hot' : quickMatch.rank <= 1500 ? 'Warm' : quickMatch.rank <= 4000 ? 'Cool' : 'Freezing',
+        color: quickMatch.rank <= 300 ? 'rose' : quickMatch.rank <= 1500 ? 'amber' : quickMatch.rank <= 4000 ? 'sky' : 'slate',
+        icon: '',
+        hint: quickMatch.rank <= 300 ? 'Burning hot! You are circling the exact conceptual core.' : 'Warm shallows. Keep exploring along this train of thought.',
+        mode: 'precomputed_instant',
+      };
+      setClientProximityCache(targetWord, quickMatch.word, instantData);
+      applyClimbResult(instantData, quickMatch.word);
+      return;
+    }
+
     const cached = getClientProximityCache(targetWord, guess);
     if (cached) {
       applyClimbResult(cached, guess);
@@ -1023,6 +1205,7 @@ export default function RepytGame() {
             href="#voyage"
             onClick={(e) => { e.preventDefault(); goToScene(0); }}
             title="Open Sea Voyage Hero"
+            className={sceneIndex === 0 ? 'nav-link-active' : ''}
           >
             Voyage
             <svg viewBox="0 0 17 21" fill="none" stroke="currentColor" strokeWidth="2.6" strokeLinecap="round">
@@ -1045,19 +1228,18 @@ export default function RepytGame() {
           </a>
 
           <a
-            href="#tennis"
+            href="#forge"
             onClick={(e) => {
               e.preventDefault();
-              handleTabSwitch('tennis');
+              handleTabSwitch('forge');
               goToScene(1);
             }}
-            title="Word Tennis AI Rally"
-            className={sceneIndex === 1 && activeTab === 'tennis' ? 'nav-link-active' : ''}
+            title="Word Forge Tile Joining"
+            className={sceneIndex === 1 && activeTab === 'forge' ? 'nav-link-active' : ''}
           >
-            Tennis
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round">
-              <circle cx="12" cy="12" r="10" />
-              <path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z" />
+            Forge
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round">
+              <path d="M14.7 6.3a1 1 0 0 0 0 1.4l1.6 1.6a1 1 0 0 0 1.4 0l3.77-3.77a6 6 0 0 1-7.94 7.94l-6.91 6.91a2.12 2.12 0 0 1-3-3l6.91-6.91a6 6 0 0 1 7.94-7.94l-3.76 3.76z" />
             </svg>
           </a>
 
@@ -1139,40 +1321,20 @@ export default function RepytGame() {
 
           {/* Scene 1: The Repyt Interaction Arena (Vault & Word Tennis) */}
           <div className="t2" id="t2" ref={t2Ref}>
-            {/* Vault Header with mode tabs & Back to Sea button */}
+            {/* Vault Header with Back to Sea button */}
             <div className="vault-header">
               <div className="vault-title-wrap">
                 <h2 id="h2" ref={h2Ref}>
-                  {activeTab === 'tennis' ? <>Repyt<br />Tennis</> : <>The Repyt<br />Vault</>}
+                  {activeTab === 'forge' ? <>Repyt<br />Word Forge</> : <>The Repyt<br />Vault</>}
                 </h2>
                 <p id="p2" ref={p2Ref}>
-                  {activeTab === 'tennis'
-                    ? "High-speed associative word rally against the AI. Keep the volley alive!"
+                  {activeTab === 'forge'
+                    ? "Join letter tiles from your rack to forge pirate words before time expires!"
                     : "Deduce today's secret concept to open the golden vault."}
                 </p>
               </div>
 
               <div className="vault-nav-actions">
-                {/* Game Mode Selector Tabs */}
-                <div className="mode-toggle-group">
-                  <button
-                    type="button"
-                    className={`mode-tab-btn ${activeTab === 'vault' ? 'active' : ''}`}
-                    onClick={() => handleTabSwitch('vault')}
-                    title="Deduce the secret daily concept"
-                  >
-                    The Vault
-                  </button>
-                  <button
-                    type="button"
-                    className={`mode-tab-btn ${activeTab === 'tennis' ? 'active' : ''}`}
-                    onClick={() => handleTabSwitch('tennis')}
-                    title="Play speed word tennis vs AI"
-                  >
-                    Word Tennis
-                  </button>
-                </div>
-
                 <button
                   type="button"
                   className="pill back-btn"
@@ -1187,155 +1349,179 @@ export default function RepytGame() {
               </div>
             </div>
 
-            {/* TAB 1: REPYT WORD TENNIS ARENA */}
-            {activeTab === 'tennis' ? (
-              <div className="question-card tennis-arena-card">
-                <div className="tennis-arena-header">
-                  <div className="tennis-status-wrap">
-                    <span className="clue-tag">Word Tennis Rally</span>
-                    <span className="tennis-streak-badge">
-                      Streak: {tennisStreak} (x{(1 + Math.floor(tennisStreak / 5) * 0.5).toFixed(1)})
+            {/* TAB 1: REPYT WORD FORGE ARENA */}
+            {activeTab === 'forge' ? (
+              <div className="question-card forge-arena-card">
+                <div className="forge-arena-header">
+                  <div className="forge-status-wrap">
+                    <span className="clue-tag">Word Forge</span>
+                    <span className="forge-streak-badge">
+                      Streak: {forgeStreak} (x{(1 + Math.floor(forgeStreak / 4) * 0.5).toFixed(1)})
                     </span>
                   </div>
-                  <div className="tennis-hud-stats">
-                    <span className={`tennis-timer-pill ${tennisTimer <= 4 ? 'urgent' : tennisTimer <= 8 ? 'warning' : ''}`}>
-                      {tennisTimer}s
+                  <div className="forge-hud-stats">
+                    <span className={`forge-timer-pill ${forgeTimer <= 10 ? 'urgent' : forgeTimer <= 20 ? 'warning' : ''}`}>
+                      {forgeTimer}s
                     </span>
-                    <span className="tennis-score-badge">
-                      {tennisScore} Pts
+                    <span className="forge-score-badge">
+                      {forgeScore} Pts
                     </span>
                   </div>
                 </div>
 
-                {/* Selectable AI Opponent Captains */}
-                <div className="tennis-captain-selector">
-                  <span className="captain-select-label">Opponent:</span>
-                  {[
-                    { id: 'barnaby', name: 'Old Barnaby', tier: 'Novice', clock: '20s', mult: '1.0x' },
-                    { id: 'siren', name: 'The Siren', tier: 'Mystic', clock: '15s', mult: '1.5x' },
-                    { id: 'blackbeard', name: 'Blackbeard', tier: 'Veteran', clock: '10s', mult: '2.0x' },
-                  ].map((c) => (
-                    <button
-                      key={c.id}
-                      type="button"
-                      className={`captain-chip ${tennisCaptain === c.id ? 'active' : ''}`}
-                      onClick={() => {
-                        if (!tennisActive) {
-                          setTennisCaptain(c.id);
-                          setTennisTimer(getInitialTimer(c.id));
-                        }
-                      }}
-                      disabled={tennisActive}
-                      title={`${c.name} (${c.clock} Clock, ${c.mult} Gold Bounty)`}
-                    >
-                      <span className="captain-chip-icon">[{c.tier}]</span>
-                      <span className="captain-chip-name">{c.name}</span>
-                      <span className="captain-chip-bounty">{c.clock} · {c.mult}</span>
-                    </button>
-                  ))}
+                {/* Forge Prompt */}
+                <div className="forge-target-info">
+                  <span>Join letters from your rack to forge words (3+ letters). Tap tiles or type!</span>
                 </div>
 
-                {/* AI Served Active Word */}
-                <div className="tennis-served-section">
-                  <div className="tennis-served-label">AI Served Word:</div>
-                  <div className="tennis-served-word">{tennisWord}</div>
-                  <div className="tennis-instruction">
-                    Return a creative associative word within <strong>{tennisTimer} seconds</strong>! No duplicates in this rally.
+                {/* Quick Selects Anagram Chips */}
+                <div className="forge-quick-selects">
+                  <span className="starter-label">Quick Selects:</span>
+                  {FORGE_POOLS[forgePoolIndex].quickSelects.map((word) => {
+                    const isForged = forgeWords.some((w) => w.word === word);
+                    return (
+                      <button
+                        key={word}
+                        type="button"
+                        className={`starter-chip forge-quick-chip ${isForged ? 'forged' : 'unforged'}`}
+                        onClick={() => !isForged && handleQuickForge(word)}
+                        disabled={!forgeActive || isForged}
+                        title={isForged ? `Forged: ${word}` : `Quick Forge "${word}"`}
+                      >
+                        <span className="chip-word">{word}</span>
+                        {isForged && <span className="chip-forged-tag">Forged</span>}
+                      </button>
+                    );
+                  })}
+                </div>
+
+                {/* Assembled Word Anvil */}
+                <div className="forge-assembled-box">
+                  <div className="assembled-tiles-row">
+                    {forgeAssembled.length === 0 ? (
+                      <span className="assembled-placeholder">Tap rack tiles or type on keyboard...</span>
+                    ) : (
+                      forgeAssembled.map((tile, idx) => (
+                        <button
+                          key={`${tile.id}-${idx}`}
+                          type="button"
+                          className="forge-tile assembled-tile"
+                          onClick={() => handleAssembledTileClick(idx)}
+                          title="Remove letter"
+                        >
+                          {tile.letter}
+                        </button>
+                      ))
+                    )}
                   </div>
                 </div>
 
-                {/* Volley Return Form */}
-                <form
-                  onSubmit={(e) => {
-                    e.preventDefault();
-                    executeTennisVolley(tennisInput);
-                  }}
-                  className="input-row"
-                >
-                  <input
-                    ref={tennisInputRef}
-                    className="ink-input"
-                    type="text"
-                    value={tennisInput}
-                    onChange={(e) => setTennisInput(e.target.value)}
-                    placeholder={
-                      !tennisActive
-                        ? 'Rally idle... click Serve to play!'
-                        : isRecording
-                        ? 'Listening to speech...'
-                        : 'Type your associative return word...'
-                    }
-                    disabled={!tennisActive || tennisEvaluating}
-                    autoComplete="off"
-                  />
+                {/* Letter Rack */}
+                <div className="forge-rack-wrap">
+                  <div className="forge-rack">
+                    {forgeRack.map((tile) => (
+                      <button
+                        key={tile.id}
+                        type="button"
+                        className={`forge-tile rack-tile ${tile.used ? 'used' : 'available'}`}
+                        onClick={() => handleTileClick(tile)}
+                        disabled={tile.used || !forgeActive}
+                        title={tile.used ? 'Used' : `Add ${tile.letter}`}
+                      >
+                        {tile.letter}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+
+                {/* Forge Action Controls */}
+                <div className="forge-controls-row">
+                  <button
+                    type="button"
+                    className="icon-pill-btn forge-control-btn"
+                    onClick={handleForgeShuffle}
+                    disabled={!forgeActive}
+                    title="Shuffle unused tiles (Spacebar)"
+                  >
+                    <svg className="icon-svg" viewBox="0 0 24 24">
+                      <polyline points="16 3 21 3 21 8" />
+                      <line x1="4" y1="20" x2="21" y2="3" />
+                      <polyline points="21 16 21 21 16 21" />
+                      <line x1="15" y1="15" x2="21" y2="21" />
+                      <line x1="4" y1="4" x2="9" y2="9" />
+                    </svg>
+                    <span>Shuffle</span>
+                  </button>
 
                   <button
                     type="button"
-                    className={`icon-pill-btn ${isRecording ? 'recording' : ''}`}
-                    onClick={toggleListening}
-                    title={isRecording ? 'Listening... click to stop' : 'Speak return word hands-free'}
-                    aria-label="Microphone"
-                    disabled={!tennisActive}
+                    className="icon-pill-btn forge-control-btn"
+                    onClick={handleForgeBackspace}
+                    disabled={!forgeActive || forgeAssembled.length === 0}
+                    title="Backspace last letter"
                   >
                     <svg className="icon-svg" viewBox="0 0 24 24">
-                      <path d="M12 1a3 3 0 0 0-3 3v8a3 3 0 0 0 6 0V4a3 3 0 0 0-3-3z" />
-                      <path d="M19 10v2a7 7 0 0 1-14 0v-2" />
-                      <line x1="12" y1="19" x2="12" y2="23" />
-                      <line x1="8" y1="23" x2="16" y2="23" />
+                      <path d="M21 4H8l-7 8 7 8h13a2 2 0 0 0 2-2V6a2 2 0 0 0-2-2z" />
+                      <line x1="18" y1="9" x2="12" y2="15" />
+                      <line x1="12" y1="9" x2="18" y2="15" />
                     </svg>
+                    <span>Back</span>
                   </button>
 
-                  {tennisActive ? (
+                  <button
+                    type="button"
+                    className="icon-pill-btn forge-control-btn"
+                    onClick={handleForgeClear}
+                    disabled={!forgeActive || forgeAssembled.length === 0}
+                    title="Clear all letters (Esc)"
+                  >
+                    <span>Clear</span>
+                  </button>
+
+                  {forgeActive ? (
                     <button
-                      type="submit"
-                      className="pill dig-btn tennis-hit-btn"
-                      disabled={tennisEvaluating || !tennisInput.trim()}
+                      type="button"
+                      className="pill dig-btn forge-submit-btn"
+                      onClick={() => executeForgeWord()}
+                      disabled={forgeAssembled.length < 3}
                     >
-                      {tennisEvaluating ? 'Judging...' : 'Hit!'}
+                      Forge!
                     </button>
                   ) : (
                     <button
                       type="button"
-                      className="pill dig-btn tennis-hit-btn"
-                      onClick={startTennisGame}
+                      className="pill dig-btn forge-submit-btn"
+                      onClick={() => startForgeGame()}
                     >
-                      Serve!
+                      Start Forge!
                     </button>
                   )}
-                </form>
-
-                {/* Referee Banter Scroll */}
-                <div className="captain-scroll">
-                  <span>&ldquo;{tennisBanter}&rdquo;</span>
                 </div>
 
-                {speechFeedback && (
-                  <div className="speech-hint">{speechFeedback}</div>
-                )}
+                {/* Forge Banter Feedback */}
+                <div className="captain-scroll forge-scroll">
+                  <span>&ldquo;{forgeBanter}&rdquo;</span>
+                </div>
 
-                {/* Volley History Feed */}
-                {tennisHistory.length > 0 && (
-                  <div className="tennis-history-feed">
-                    <div className="tennis-history-header">
-                      <span className="tennis-history-title">Rally Volleys ({tennisHistory.length})</span>
+                {/* Discovered Words Feed */}
+                {forgeWords.length > 0 && (
+                  <div className="forge-words-feed">
+                    <div className="forge-words-header">
+                      <span className="forge-words-title">Forged Words ({forgeWords.length})</span>
                       <button
                         type="button"
                         className="starter-chip"
-                        onClick={startTennisGame}
+                        onClick={() => startForgeGame()}
                         style={{ fontSize: '10px', padding: '2px 8px' }}
                       >
-                        New Serve
+                        New Rack
                       </button>
                     </div>
-                    <div className="tennis-volleys-list">
-                      {tennisHistory.map((h, idx) => (
-                        <div key={idx} className="tennis-volley-item">
-                          <span className="volley-order">#{tennisHistory.length - idx}</span>
-                          <span className="volley-served">{h.servedWord}</span>
-                          <span className="volley-arrow">-&gt;</span>
-                          <span className="volley-return">{h.playerWord}</span>
-                          <span className="volley-score">+{h.score} pts</span>
-                          <span className="volley-counter">AI: &ldquo;{h.counterWord}&rdquo;</span>
+                    <div className="forge-words-list">
+                      {forgeWords.map((w, idx) => (
+                        <div key={idx} className="forge-word-pill">
+                          <span className="forge-word-name">{w.word}</span>
+                          <span className="forge-word-pts">+{w.points} pts</span>
                         </div>
                       ))}
                     </div>
@@ -1423,28 +1609,35 @@ export default function RepytGame() {
                     </button>
                   </form>
 
-                  {/* Starter Bearing Suggestions */}
-                  {climbGuesses.length === 0 && !climbSolved && (
+                  {/* Persistent Quick Selects */}
+                  {!climbSolved && remainingLeagues > 0 && (
                     <div className="starter-chips-row">
-                      <span className="starter-label">Try a starting word:</span>
-                      {(dailyClue.suggestions || ['Beacon', 'Tower', 'Ocean']).map((sugg) => (
-                        <button
-                          key={sugg}
-                          type="button"
-                          className="starter-chip"
-                          onClick={() => handleQuickGuess(sugg)}
-                          disabled={climbEvaluating || remainingLeagues === 0}
-                        >
-                          {sugg}
-                        </button>
-                      ))}
+                      <span className="starter-label">Quick Selects:</span>
+                      {(dailyClue.quickSelects || (dailyClue.suggestions || ['Beacon', 'Tower', 'Ocean']).map((s) => ({ word: s }))).map((item) => {
+                        const word = item.word || item;
+                        const tested = climbGuesses.find(
+                          (g) => g.guess.toLowerCase() === word.toLowerCase()
+                        );
+                        return (
+                          <button
+                            key={word}
+                            type="button"
+                            className={`starter-chip ${tested ? 'tested' : 'untested'}`}
+                            onClick={() => !tested && handleQuickGuess(word)}
+                            disabled={climbEvaluating || remainingLeagues === 0 || !!tested}
+                            title={tested ? `Tested: #${tested.rank}` : `Quick select "${word}"`}
+                          >
+                            <span className="chip-word">{word}</span>
+                            {tested && (
+                              <span className={`chip-rank-tag ${tested.rank <= 300 ? 'hot' : tested.rank <= 1500 ? 'warm' : 'cold'}`}>
+                                #{tested.rank}
+                              </span>
+                            )}
+                          </button>
+                        );
+                      })}
                     </div>
                   )}
-
-                  {/* Helmsman Banter Scroll */}
-                  <div className="captain-scroll">
-                    <span>&ldquo;{captainBanter}&rdquo;</span>
-                  </div>
 
                   {speechFeedback && (
                     <div className="speech-hint">
@@ -1582,20 +1775,21 @@ export default function RepytGame() {
             </div>
           </div>
 
-          {/* Section 2: Word Tennis */}
+          {/* Section 2: Word Forge */}
           <div className="rules-section-card" style={{ marginTop: '12px' }}>
             <div className="rules-card-title">
               <span className="rules-mode-badge">Game Mode 2</span>
-              <h4>Repyt Tennis (Word Association Rally)</h4>
+              <h4>Repyt Word Forge (Letter Joining)</h4>
             </div>
             <p className="rules-card-intro">
-              High-speed associative rally against the AI pirate referee:
+              Join letter tiles from your rack to forge valid nautical words before time expires:
             </p>
             <ul className="rules-list">
-              <li><strong>Serve to Play:</strong> Select your opponent captain and click &ldquo;Serve!&rdquo; to begin the rally.</li>
-              <li><strong>Volley Clock:</strong> Return a creative associative word before time expires (10s – 20s based on captain).</li>
-              <li><strong>No Repeats:</strong> You cannot reuse words already played in the current rally.</li>
-              <li><strong>Streak Multipliers:</strong> Sustained rallies earn combo multipliers and bonus gold doubloons.</li>
+              <li><strong>60-Second Shift:</strong> Normal mode round timer. Forge as many words as possible!</li>
+              <li><strong>Letter Joining:</strong> Click rack tiles or type on your keyboard to assemble words (3+ letters).</li>
+              <li><strong>Quick Selects:</strong> Instant anagram chips are available to click and forge with zero delay.</li>
+              <li><strong>Word Scoring:</strong> 3 letters = 30 pts, 4 letters = 60 pts, 5 letters = 100 pts, 6 letters = 160 pts, 7+ letters = 260 pts!</li>
+              <li><strong>Streaks &amp; Doubloons:</strong> Multipliers boost your score and earn gold doubloons for your logbook.</li>
             </ul>
           </div>
 
@@ -1842,9 +2036,9 @@ export default function RepytGame() {
         </button>
       </dialog>
 
-      {/* Word Tennis Rally Concluded Modal */}
+      {/* Word Forge Shift Concluded Modal */}
       <dialog
-        ref={tennisGameOverDialogRef}
+        ref={forgeGameOverDialogRef}
         onClose={() => {
           if (typeof document !== 'undefined' && !document.querySelectorAll('dialog[open]').length) {
             document.documentElement.classList.remove('has-modal');
@@ -1852,13 +2046,13 @@ export default function RepytGame() {
         }}
         onCancel={(e) => {
           e.preventDefault();
-          closeDialog(tennisGameOverDialogRef);
+          closeDialog(forgeGameOverDialogRef);
         }}
-        onClick={(e) => handleDialogBackdropClick(e, tennisGameOverDialogRef)}
+        onClick={(e) => handleDialogBackdropClick(e, forgeGameOverDialogRef)}
       >
         <div className="modal-header">
-          <h3 className="modal-title">Rally Concluded!</h3>
-          <button className="icon-pill-btn" onClick={() => closeDialog(tennisGameOverDialogRef)} aria-label="Close modal">
+          <h3 className="modal-title">Forge Shift Concluded!</h3>
+          <button className="icon-pill-btn" onClick={() => closeDialog(forgeGameOverDialogRef)} aria-label="Close modal">
             <svg className="icon-svg" viewBox="0 0 24 24">
               <line x1="18" y1="6" x2="6" y2="18" />
               <line x1="6" y1="6" x2="18" y2="18" />
@@ -1866,43 +2060,61 @@ export default function RepytGame() {
           </button>
         </div>
         <div className="modal-body">
-          <p>{tennisResult?.reason || 'The word volley has dropped into the sea.'}</p>
+          <p>{forgeResult?.reason || 'The 60-second forge timer has elapsed.'}</p>
           <div className="stats-grid" style={{ margin: '18px 0' }}>
             <div className="stat-card">
               <div className="stat-lbl">Final Score</div>
-              <div className="stat-val" style={{ color: 'var(--gold)' }}>{tennisResult?.score || 0}</div>
+              <div className="stat-val" style={{ color: 'var(--gold)' }}>{forgeResult?.score || 0}</div>
             </div>
             <div className="stat-card">
-              <div className="stat-lbl">Rally Length</div>
-              <div className="stat-val">{tennisResult?.wordsCount || 0} Volleys</div>
+              <div className="stat-lbl">Words Forged</div>
+              <div className="stat-val">{forgeResult?.wordsCount || 0} Words</div>
             </div>
             <div className="stat-card">
               <div className="stat-lbl">Best Streak</div>
-              <div className="stat-val">{tennisResult?.streak || 0}</div>
+              <div className="stat-val">{forgeResult?.streak || 0}</div>
             </div>
             <div className="stat-card">
               <div className="stat-lbl">Bounty Awarded</div>
-              <div className="stat-val" style={{ color: 'var(--emerald)' }}>+{tennisResult?.earnedDoubloons || 0} Gold</div>
+              <div className="stat-val" style={{ color: 'var(--emerald)' }}>+{forgeResult?.earnedDoubloons || 0} Gold</div>
             </div>
           </div>
+
+          {/* List of Forged Words */}
+          {forgeResult?.wordsList && forgeResult.wordsList.length > 0 && (
+            <div className="nearest-reveal-section">
+              <div className="nearest-reveal-title">Forged in this shift:</div>
+              <div className="forge-words-list" style={{ display: 'flex', flexWrap: 'wrap', gap: '6px' }}>
+                {forgeResult.wordsList.map((w, idx) => (
+                  <div key={idx} className="forge-word-pill">
+                    <span className="forge-word-name">{w.word}</span>
+                    <span className="forge-word-pts">+{w.points} pts</span>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
         </div>
         <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
           <button
             className="pill"
             style={{ width: '100%' }}
             onClick={() => {
-              closeDialog(tennisGameOverDialogRef);
-              startTennisGame();
+              closeDialog(forgeGameOverDialogRef);
+              startForgeGame();
             }}
           >
-            Serve Next Rally!
+            Forge Next Rack!
           </button>
           <button
             className="pill"
             style={{ width: '100%', background: '#eae4d3', color: 'var(--ink)' }}
-            onClick={() => closeDialog(tennisGameOverDialogRef)}
+            onClick={() => {
+              closeDialog(forgeGameOverDialogRef);
+              goToScene(0);
+            }}
           >
-            Return to Court
+            Return to Sea
           </button>
         </div>
       </dialog>

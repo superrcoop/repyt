@@ -94,6 +94,93 @@ const NEAREST_NEIGHBORS = {
   ],
 };
 
+const QUICK_SELECT_SETS = {
+  'Lighthouse': [
+    { word: 'Beacon', similarity: 94.8, rank: 2 },
+    { word: 'Foghorn', similarity: 91.2, rank: 14 },
+    { word: 'Watchtower', similarity: 88.5, rank: 35 },
+    { word: 'Coastguard', similarity: 86.1, rank: 62 },
+    { word: 'Lantern', similarity: 82.4, rank: 110 },
+    { word: 'Harbor', similarity: 73.1, rank: 280 },
+    { word: 'Ocean', similarity: 65.8, rank: 450 },
+    { word: 'Ship', similarity: 58.4, rank: 720 },
+    { word: 'Island', similarity: 53.2, rank: 1200 },
+    { word: 'Mountain', similarity: 22.1, rank: 5400 },
+  ],
+  'Volcano': [
+    { word: 'Magma', similarity: 95.2, rank: 2 },
+    { word: 'Eruption', similarity: 93.6, rank: 9 },
+    { word: 'Crater', similarity: 89.4, rank: 28 },
+    { word: 'Lava', similarity: 87.8, rank: 45 },
+    { word: 'Basalt', similarity: 83.2, rank: 95 },
+    { word: 'Geyser', similarity: 76.5, rank: 210 },
+    { word: 'Mountain', similarity: 67.3, rank: 410 },
+    { word: 'Smoke', similarity: 59.8, rank: 680 },
+    { word: 'Fire', similarity: 54.1, rank: 1150 },
+    { word: 'Glacier', similarity: 18.2, rank: 6200 },
+  ],
+  'Compass': [
+    { word: 'Sextant', similarity: 94.3, rank: 2 },
+    { word: 'Bearing', similarity: 91.0, rank: 12 },
+    { word: 'Heading', similarity: 88.6, rank: 38 },
+    { word: 'Navigator', similarity: 86.4, rank: 59 },
+    { word: 'Needle', similarity: 81.7, rank: 125 },
+    { word: 'Latitude', similarity: 74.2, rank: 260 },
+    { word: 'Map', similarity: 66.5, rank: 440 },
+    { word: 'North', similarity: 58.9, rank: 710 },
+    { word: 'Horizon', similarity: 52.8, rank: 1220 },
+    { word: 'Volcano', similarity: 19.4, rank: 5900 },
+  ],
+  'Submarine': [
+    { word: 'Periscope', similarity: 93.8, rank: 3 },
+    { word: 'Torpedo', similarity: 90.5, rank: 18 },
+    { word: 'Sonar', similarity: 88.1, rank: 41 },
+    { word: 'Nautilus', similarity: 85.9, rank: 74 },
+    { word: 'Depth', similarity: 80.4, rank: 135 },
+    { word: 'Propeller', similarity: 72.8, rank: 290 },
+    { word: 'Vessel', similarity: 64.6, rank: 480 },
+    { word: 'Ocean', similarity: 57.2, rank: 760 },
+    { word: 'Trench', similarity: 51.5, rank: 1280 },
+    { word: 'Desert', similarity: 17.8, rank: 6100 },
+  ],
+  'Telescope': [
+    { word: 'Observatory', similarity: 94.5, rank: 2 },
+    { word: 'Binoculars', similarity: 91.8, rank: 10 },
+    { word: 'Stargazer', similarity: 88.4, rank: 36 },
+    { word: 'Astrolabe', similarity: 85.7, rank: 68 },
+    { word: 'Eyepiece', similarity: 81.2, rank: 140 },
+    { word: 'Refractor', similarity: 73.5, rank: 275 },
+    { word: 'Lens', similarity: 65.3, rank: 460 },
+    { word: 'Stars', similarity: 58.0, rank: 740 },
+    { word: 'Cosmos', similarity: 52.1, rank: 1250 },
+    { word: 'Submarine', similarity: 18.9, rank: 5800 },
+  ],
+  'Glacier': [
+    { word: 'Iceberg', similarity: 94.2, rank: 2 },
+    { word: 'Crevasse', similarity: 90.8, rank: 16 },
+    { word: 'Permafrost', similarity: 87.9, rank: 42 },
+    { word: 'Moraine', similarity: 85.3, rank: 75 },
+    { word: 'Fjord', similarity: 80.9, rank: 130 },
+    { word: 'Icefield', similarity: 73.0, rank: 285 },
+    { word: 'Ice', similarity: 66.2, rank: 430 },
+    { word: 'Frozen', similarity: 58.7, rank: 700 },
+    { word: 'Mountain', similarity: 52.4, rank: 1230 },
+    { word: 'Volcano', similarity: 19.1, rank: 5950 },
+  ],
+  'Horizon': [
+    { word: 'Skyline', similarity: 93.9, rank: 3 },
+    { word: 'Verge', similarity: 89.7, rank: 24 },
+    { word: 'Vista', similarity: 87.5, rank: 49 },
+    { word: 'Expanse', similarity: 85.1, rank: 77 },
+    { word: 'Sunset', similarity: 80.2, rank: 145 },
+    { word: 'Mirage', similarity: 72.1, rank: 310 },
+    { word: 'Distance', similarity: 64.9, rank: 470 },
+    { word: 'Sea', similarity: 57.8, rank: 730 },
+    { word: 'Coast', similarity: 51.9, rank: 1260 },
+    { word: 'Labyrinth', similarity: 18.5, rank: 6050 },
+  ],
+};
+
 export function getNearestNeighbors(target) {
   if (NEAREST_NEIGHBORS[target]) return NEAREST_NEIGHBORS[target];
   const details = getTargetDetails(target);
@@ -105,6 +192,31 @@ export function getNearestNeighbors(target) {
     similarity: baseSims[idx] || 82.0,
     rank: baseRanks[idx] || (idx + 1) * 20,
   }));
+}
+
+export function getQuickSelects(target) {
+  if (QUICK_SELECT_SETS[target]) return QUICK_SELECT_SETS[target];
+  const details = getTargetDetails(target);
+  const nn = getNearestNeighbors(target);
+  const baseSuggestions = details.suggestions || ['Ocean', 'Sky', 'Mountain', 'Coast', 'Sun', 'Island', 'Wind', 'River'];
+  const pool = [...nn];
+  const added = new Set(pool.map((p) => p.word.toLowerCase()));
+
+  const fallbackRanks = [18, 55, 140, 320, 650, 1100, 2400, 4800];
+  const fallbackSims = [91.5, 87.2, 81.0, 72.5, 62.1, 54.8, 41.2, 24.5];
+
+  baseSuggestions.forEach((w, idx) => {
+    if (!added.has(w.toLowerCase())) {
+      pool.push({
+        word: w,
+        rank: fallbackRanks[idx % fallbackRanks.length] || 500,
+        similarity: fallbackSims[idx % fallbackSims.length] || 60.0,
+      });
+      added.add(w.toLowerCase());
+    }
+  });
+
+  return pool.slice(0, 10);
 }
 
 function getDailyTarget(dateStr) {
@@ -293,6 +405,7 @@ export async function GET() {
   const target = getDailyTarget(dateStr);
   const details = getTargetDetails(target);
   const nearestNeighbors = getNearestNeighbors(target);
+  const quickSelects = getQuickSelects(target);
 
   return NextResponse.json({
     category: details.category,
@@ -300,6 +413,7 @@ export async function GET() {
     hint: details.hint,
     suggestions: details.suggestions,
     nearestNeighbors,
+    quickSelects,
   });
 }
 
@@ -309,7 +423,8 @@ export async function POST(req) {
   const target = getDailyTarget(dateStr);
   const details = getTargetDetails(target);
   const nearestNeighbors = getNearestNeighbors(target);
-  const extendedDetails = { ...details, targetWord: target, nearestNeighbors };
+  const quickSelects = getQuickSelects(target);
+  const extendedDetails = { ...details, targetWord: target, nearestNeighbors, quickSelects };
 
   try {
     const body = await req.json();
@@ -336,6 +451,35 @@ export async function POST(req) {
         hint: `Bingo! The daily target was ${target}!`,
         targetWord: target,
         nearestNeighbors,
+        details: extendedDetails,
+      });
+    }
+
+    // Instant precomputed match for quick selects and nearest neighbors
+    const precomputed = [...quickSelects, ...nearestNeighbors].find(
+      (item) => item.word.toLowerCase() === cleanGuess.toLowerCase()
+    );
+    if (precomputed) {
+      const temp = getTemperature(precomputed.rank);
+      const sim = precomputed.similarity;
+      const rank = precomputed.rank;
+      return NextResponse.json({
+        guess: cleanGuess,
+        rank,
+        similarity: sim,
+        bearing: getVectorCompassBearing(rank, sim / 100),
+        solved: false,
+        temperature: temp.label,
+        color: temp.color,
+        icon: temp.icon,
+        hint: rank <= 300
+          ? 'Burning hot! You are circling the exact conceptual core.'
+          : rank <= 1500
+          ? 'Warm shallows! You are in the right domain—hone in on specific function or form.'
+          : rank <= 4000
+          ? 'Cool breeze. The concept shares a loose connection, but try shifting perspective.'
+          : 'Freezing waters. This concept is in an entirely different corner of the map.',
+        mode: 'precomputed_instant',
         details: extendedDetails,
       });
     }

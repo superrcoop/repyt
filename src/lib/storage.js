@@ -153,9 +153,9 @@ export function getDailyQuests() {
   // Default initial quests for today
   const defaultQuests = [
     {
-      id: 'quest_tennis',
-      title: 'Rally Commander',
-      desc: 'Maintain a 5+ volley rally in Word Tennis',
+      id: 'quest_forge',
+      title: 'Forge Master',
+      desc: 'Forge 5 words in a single Word Forge shift',
       target: 5,
       current: 0,
       reward: 30,

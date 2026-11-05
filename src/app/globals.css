@@ -504,12 +504,56 @@ html.fine #ping {
   border: 1.5px solid var(--line);
   background: var(--paper);
   cursor: pointer;
-  transition: transform 0.15s, background 0.15s;
+  transition: transform 0.15s, background 0.15s, box-shadow 0.15s;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
 }
 
-.starter-chip:hover {
+.starter-chip.untested:hover {
   transform: translateY(-1px);
   background: #fbf8ef;
+  box-shadow: 0 2px 4px rgba(22, 19, 14, 0.1);
+}
+
+.starter-chip.tested {
+  opacity: 0.85;
+  background: #eee8d8;
+  cursor: default;
+}
+
+.chip-rank-tag {
+  font: 700 10px/1 "Open Sans", monospace;
+  padding: 2px 6px;
+  border-radius: 999px;
+}
+
+.chip-rank-tag.hot {
+  background: #ffe4e6;
+  color: #e11d48;
+  border: 1px solid #f43f5e;
+}
+
+.chip-rank-tag.warm {
+  background: #fef3c7;
+  color: #d97706;
+  border: 1px solid #f59e0b;
+}
+
+.chip-rank-tag.cold {
+  background: #f1f5f9;
+  color: #64748b;
+  border: 1px solid #cbd5e1;
+}
+
+.chip-forged-tag {
+  font: 700 9.5px/1 "Josefin Sans", sans-serif;
+  background: #dcfce7;
+  color: #15803d;
+  border: 1px solid #22c55e;
+  padding: 1px 6px;
+  border-radius: 999px;
+  text-transform: uppercase;
 }
 
 /* Ship Horizon Distance Lifeline Gauge */
@@ -1175,45 +1219,14 @@ dialog::backdrop {
   flex-shrink: 0;
 }
 
-.mode-toggle-group {
-  display: inline-flex;
-  align-items: center;
-  background: #efe9d9;
-  border: 2px solid var(--line);
-  border-radius: 999px;
-  padding: 2px;
-}
-
-.mode-tab-btn {
-  font: 700 11px/1 "Josefin Sans", sans-serif;
-  letter-spacing: 0.08em;
-  text-transform: uppercase;
-  padding: 6px 14px 5px;
-  border-radius: 999px;
-  color: var(--ink);
-  opacity: 0.65;
-  transition: all 0.2s ease;
-  cursor: pointer;
-}
-
-.mode-tab-btn:hover {
-  opacity: 1;
-}
-
-.mode-tab-btn.active {
-  background: var(--ink);
-  color: var(--paper);
-  opacity: 1;
-}
-
 /* ========================================================
-   Word Tennis Arena Styles
+   Word Forge Arena Styles
    ======================================================== */
-.tennis-arena-card {
+.forge-arena-card {
   border-color: var(--line);
 }
 
-.tennis-arena-header {
+.forge-arena-header {
   display: flex;
   align-items: center;
   justify-content: space-between;
@@ -1221,13 +1234,13 @@ dialog::backdrop {
   border-bottom: 1.5px dashed rgba(22, 19, 14, 0.25);
 }
 
-.tennis-status-wrap {
+.forge-status-wrap {
   display: flex;
   align-items: center;
   gap: 8px;
 }
 
-.tennis-streak-badge {
+.forge-streak-badge {
   font: 700 11px/1 "Josefin Sans", sans-serif;
   letter-spacing: 0.06em;
   background: #fef3c7;
@@ -1237,13 +1250,13 @@ dialog::backdrop {
   padding: 3px 9px 2px;
 }
 
-.tennis-hud-stats {
+.forge-hud-stats {
   display: flex;
   align-items: center;
   gap: 8px;
 }
 
-.tennis-timer-pill {
+.forge-timer-pill {
   font: 700 12px/1 "Open Sans", monospace;
   letter-spacing: 0.04em;
   background: #e0f2fe;
@@ -1254,13 +1267,13 @@ dialog::backdrop {
   transition: background 0.3s, color 0.3s;
 }
 
-.tennis-timer-pill.warning {
+.forge-timer-pill.warning {
   background: #fef3c7;
   color: #b45309;
   border-color: #d97706;
 }
 
-.tennis-timer-pill.urgent {
+.forge-timer-pill.urgent {
   background: #fee2e2;
   color: #b91c1c;
   border-color: #ef4444;
@@ -1272,7 +1285,7 @@ dialog::backdrop {
   100% { transform: scale(1.08); }
 }
 
-.tennis-score-badge {
+.forge-score-badge {
   font: 700 12px/1 "Josefin Sans", sans-serif;
   background: #dcfce7;
   color: var(--emerald);
@@ -1281,123 +1294,207 @@ dialog::backdrop {
   padding: 4px 10px 3px;
 }
 
-.tennis-served-section {
+.forge-target-info {
   text-align: center;
-  padding: 12px 16px 8px;
-  background: #ebe5d4;
-  border: 2px dashed rgba(22, 19, 14, 0.3);
-  border-radius: 14px;
-  margin: 4px 0;
-}
-
-.tennis-served-label {
-  font: 700 10.5px/1 "Open Sans", sans-serif;
-  letter-spacing: 0.14em;
-  text-transform: uppercase;
-  opacity: 0.6;
-}
-
-.tennis-served-word {
-  font: 400 38px/1 "Goudy Bookletter 1911", serif;
-  color: var(--ink);
-  margin: 6px 0 4px;
-  letter-spacing: 0.04em;
-}
-
-.tennis-instruction {
   font: 600 11.5px/1.4 "Open Sans", sans-serif;
   opacity: 0.75;
+  margin: 6px 0 2px;
 }
 
-.tennis-hit-btn {
+/* Quick Selects Anagram Chips */
+.forge-quick-selects {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex-wrap: wrap;
+  margin: 8px 0;
+  padding: 8px 10px;
+  background: rgba(22, 19, 14, 0.04);
+  border: 1px dashed rgba(22, 19, 14, 0.2);
+  border-radius: 12px;
+}
+
+.forge-quick-chip.forged {
+  border-color: var(--emerald);
+  background: #f0fdf4;
+}
+
+/* Assembled Word Anvil */
+.forge-assembled-box {
+  min-height: 56px;
+  background: #ede7d5;
+  border: 2px solid var(--line);
+  border-radius: 14px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 8px 12px;
+  margin: 6px 0;
+  box-shadow: inset 0 2px 4px rgba(22, 19, 14, 0.08);
+}
+
+.assembled-tiles-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+  justify-content: center;
+}
+
+.assembled-placeholder {
+  font: 400 13px/1 "Goudy Bookletter 1911", serif;
+  font-style: italic;
+  opacity: 0.55;
+  color: var(--ink);
+}
+
+/* Letter Tiles */
+.forge-tile {
+  font: 700 22px/1 "Goudy Bookletter 1911", serif;
+  width: 44px;
+  height: 48px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  background: #fdfcf7;
+  border: 2px solid var(--line);
+  border-radius: 8px;
+  color: var(--ink);
+  box-shadow: 0 3px 0 var(--line);
+  cursor: pointer;
+  transition: all 0.15s ease;
+  user-select: none;
+}
+
+.forge-tile.rack-tile.available:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 5px 0 var(--line);
+  background: #fff;
+}
+
+.forge-tile.rack-tile.available:active {
+  transform: translateY(2px);
+  box-shadow: 0 1px 0 var(--line);
+}
+
+.forge-tile.rack-tile.used {
+  opacity: 0.3;
+  cursor: not-allowed;
+  transform: translateY(2px);
+  box-shadow: 0 1px 0 var(--line);
+  background: #e6dfcb;
+}
+
+.forge-tile.assembled-tile {
+  background: #fffdf5;
+  border-color: var(--gold);
+  color: var(--ink);
+  box-shadow: 0 3px 0 var(--line);
+}
+
+.forge-tile.assembled-tile:hover {
+  border-color: #ef4444;
+  color: #ef4444;
+  transform: translateY(-1px);
+}
+
+/* Rack Layout */
+.forge-rack-wrap {
+  margin: 8px 0 12px;
+}
+
+.forge-rack {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+/* Controls */
+.forge-controls-row {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  flex-wrap: wrap;
+  margin-top: 6px;
+}
+
+.forge-control-btn {
+  font: 700 11px/1 "Josefin Sans", sans-serif;
+  letter-spacing: 0.06em;
+  padding: 6px 14px;
+  gap: 5px;
+}
+
+.forge-submit-btn {
   background: var(--gold) !important;
   color: #fff !important;
   box-shadow: 0 4px 0 -1px var(--paper), 0 4px 0 2px var(--line) !important;
+  min-width: 90px;
 }
 
-.tennis-hit-btn:hover {
+.forge-submit-btn:hover:not(:disabled) {
   background: #92400e !important;
 }
 
-/* Volley History Feed */
-.tennis-history-feed {
-  margin-top: 6px;
+.forge-scroll {
+  margin-top: 8px;
+}
+
+/* Discovered Words Feed */
+.forge-words-feed {
+  margin-top: 8px;
   padding-top: 8px;
   border-top: 1px dotted rgba(22, 19, 14, 0.25);
 }
 
-.tennis-history-header {
+.forge-words-header {
   display: flex;
   align-items: center;
   justify-content: space-between;
   margin-bottom: 6px;
 }
 
-.tennis-history-title {
+.forge-words-title {
   font: 700 11px/1 "Open Sans", sans-serif;
   letter-spacing: 0.1em;
   text-transform: uppercase;
   opacity: 0.65;
 }
 
-.tennis-volleys-list {
+.forge-words-list {
   display: flex;
-  flex-direction: column;
+  align-items: center;
   gap: 6px;
-  max-height: 120px;
+  flex-wrap: wrap;
+  max-height: 90px;
   overflow-y: auto;
   padding-right: 4px;
 }
 
-.tennis-volley-item {
-  display: flex;
+.forge-word-pill {
+  display: inline-flex;
   align-items: center;
-  gap: 8px;
+  gap: 6px;
   background: #fbf8ef;
   border: 1.5px solid var(--line);
-  border-radius: 10px;
-  padding: 5px 10px;
+  border-radius: 999px;
+  padding: 3px 10px;
   font-size: 12px;
 }
 
-.volley-order {
-  font-weight: 700;
-  color: var(--gold);
-  font-size: 11px;
-}
-
-.volley-served {
+.forge-word-name {
   font-family: "Goudy Bookletter 1911", serif;
-  font-size: 14px;
-  font-weight: 600;
-}
-
-.volley-arrow {
-  opacity: 0.4;
-  font-size: 11px;
-}
-
-.volley-return {
-  font-family: "Goudy Bookletter 1911", serif;
-  font-size: 14px;
   font-weight: 700;
-  color: var(--emerald);
+  color: var(--ink);
+  letter-spacing: 0.04em;
 }
 
-.volley-score {
-  font: 700 10.5px/1 "Josefin Sans", sans-serif;
-  background: #eef8ee;
-  border: 1px solid var(--emerald);
+.forge-word-pts {
+  font: 700 10px/1 "Josefin Sans", sans-serif;
   color: var(--emerald);
-  padding: 2px 6px;
-  border-radius: 999px;
-  margin-left: auto;
-}
-
-.volley-counter {
-  font-style: italic;
-  font-size: 11px;
-  opacity: 0.7;
 }
 
 /* Vector Similarity Badge in Vault Answers */
@@ -1594,68 +1691,7 @@ dialog[open].rules-dialog {
   color: #3a3429;
 }
 
-/* ========================================================
-   Word Tennis Captain Selector
-   ======================================================== */
-.tennis-captain-selector {
-  display: flex;
-  align-items: center;
-  gap: 6px;
-  flex-wrap: wrap;
-  padding: 4px 0 6px;
-}
 
-.captain-select-label {
-  font: 700 10.5px/1 "Open Sans", sans-serif;
-  letter-spacing: 0.12em;
-  text-transform: uppercase;
-  opacity: 0.65;
-  margin-right: 2px;
-}
-
-.captain-chip {
-  display: inline-flex;
-  align-items: center;
-  gap: 5px;
-  font: 700 11px/1 "Josefin Sans", sans-serif;
-  padding: 5px 10px 4px;
-  border-radius: 999px;
-  border: 1.5px solid var(--line);
-  background: #fbf8ef;
-  color: var(--ink);
-  cursor: pointer;
-  transition: all 0.2s ease;
-}
-
-.captain-chip:hover:not(:disabled) {
-  transform: translateY(-1px);
-  background: #fff;
-}
-
-.captain-chip.active {
-  background: var(--ink);
-  color: var(--paper);
-  border-color: var(--ink);
-}
-
-.captain-chip-icon {
-  font-size: 13px;
-}
-
-.captain-chip-name {
-  letter-spacing: 0.02em;
-}
-
-.captain-chip-bounty {
-  font: 600 9.5px/1 "Open Sans", sans-serif;
-  opacity: 0.75;
-  margin-left: 2px;
-}
-
-.captain-chip.active .captain-chip-bounty {
-  color: #fde68a;
-  opacity: 0.95;
-}
 
 /* ========================================================
    Daily Logbook Quests
