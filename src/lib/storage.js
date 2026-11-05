@@ -92,19 +92,35 @@ export function recordSpeechPractice() {
 }
 
 export function getPreferences() {
-  if (typeof window === 'undefined') return { sound: true, voiceEnabled: true };
+  const defaults = {
+    sound: true,
+    quickSelects: true,
+    voiceEnabled: true,
+    speechAudio: true,
+  };
+  if (typeof window === 'undefined') return defaults;
   try {
     const raw = localStorage.getItem(PREFS_KEY);
-    return raw ? JSON.parse(raw) : { sound: true, voiceEnabled: true };
+    if (!raw) return defaults;
+    const parsed = JSON.parse(raw);
+    return {
+      sound: parsed.sound !== false,
+      quickSelects: parsed.quickSelects !== false,
+      voiceEnabled: parsed.voiceEnabled !== false,
+      speechAudio: parsed.speechAudio !== false,
+    };
   } catch (e) {
-    return { sound: true, voiceEnabled: true };
+    return defaults;
   }
 }
 
 export function savePreferences(prefs) {
   if (typeof window === 'undefined') return;
   try {
-    localStorage.setItem(PREFS_KEY, JSON.stringify(prefs));
+    const current = getPreferences();
+    const updated = { ...current, ...prefs };
+    localStorage.setItem(PREFS_KEY, JSON.stringify(updated));
+    return updated;
   } catch (e) {
     // ignore
   }

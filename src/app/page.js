@@ -314,9 +314,15 @@ export default function RepytGame() {
   const [dailyQuests, setDailyQuests] = useState([]);
   const [shareToast, setShareToast] = useState('');
 
+  // Preferences State
+  const [quickSelectsEnabled, setQuickSelectsEnabled] = useState(true);
+  const [voiceEnabled, setVoiceEnabled] = useState(true);
+  const [speechAudioEnabled, setSpeechAudioEnabled] = useState(true);
+
   // Dialog refs
   const rulesDialogRef = useRef(null);
   const statsDialogRef = useRef(null);
+  const settingsDialogRef = useRef(null);
   const strandedDialogRef = useRef(null);
   const victoryDialogRef = useRef(null);
   const climbInputRef = useRef(null);
@@ -366,6 +372,9 @@ export default function RepytGame() {
     const prefs = getPreferences();
     setSoundMuted(!prefs.sound);
     sound.setMuted(!prefs.sound);
+    setQuickSelectsEnabled(prefs.quickSelects !== false);
+    setVoiceEnabled(prefs.voiceEnabled !== false);
+    setSpeechAudioEnabled(prefs.speechAudio !== false);
     setStats(getPlayerStats());
 
     // Load Daily Logbook Quests
@@ -766,6 +775,12 @@ export default function RepytGame() {
 
   // 5. Voice Recognition Toggle & Handling
   const toggleListening = () => {
+    if (!voiceEnabled) {
+      setSpeechFeedback('Voice input is disabled in Settings.');
+      setTimeout(() => setSpeechFeedback(''), 2500);
+      return;
+    }
+
     if (!recognitionRef.current) {
       alert('Speech recognition is not supported in this browser. Please use Chrome, Edge, or Safari.');
       return;
@@ -1037,6 +1052,7 @@ export default function RepytGame() {
 
   // 6. Speech Pronunciation Teaching Action
   const pronounceWord = (word) => {
+    if (!speechAudioEnabled) return;
     sound.speakWord(word, () => {
       const updated = recordSpeechPractice();
       if (updated) setStats(updated);
@@ -1266,11 +1282,53 @@ export default function RepytGame() {
     }
   };
 
+  const handleToggleSound = (val) => {
+    const nextSoundOn = typeof val === 'boolean' ? val : soundMuted;
+    const isMuted = !nextSoundOn;
+    setSoundMuted(isMuted);
+    sound.setMuted(isMuted);
+    savePreferences({ sound: nextSoundOn });
+  };
+
   const toggleSound = () => {
-    const next = !soundMuted;
-    setSoundMuted(next);
-    sound.setMuted(next);
-    savePreferences({ sound: !next });
+    handleToggleSound(soundMuted);
+  };
+
+  const handleToggleQuickSelects = (val) => {
+    const nextVal = typeof val === 'boolean' ? val : !quickSelectsEnabled;
+    setQuickSelectsEnabled(nextVal);
+    savePreferences({ quickSelects: nextVal });
+    sound.tick();
+  };
+
+  const handleToggleVoice = (val) => {
+    const nextVal = typeof val === 'boolean' ? val : !voiceEnabled;
+    setVoiceEnabled(nextVal);
+    savePreferences({ voiceEnabled: nextVal });
+    sound.tick();
+  };
+
+  const handleToggleSpeechAudio = (val) => {
+    const nextVal = typeof val === 'boolean' ? val : !speechAudioEnabled;
+    setSpeechAudioEnabled(nextVal);
+    savePreferences({ speechAudio: nextVal });
+    sound.tick();
+  };
+
+  const handleResetPreferences = () => {
+    const defaults = {
+      sound: true,
+      quickSelects: true,
+      voiceEnabled: true,
+      speechAudio: true,
+    };
+    savePreferences(defaults);
+    setSoundMuted(false);
+    sound.setMuted(false);
+    setQuickSelectsEnabled(true);
+    setVoiceEnabled(true);
+    setSpeechAudioEnabled(true);
+    sound.streak();
   };
 
   const pirateRank = getPirateRank(stats.doubloons);
@@ -1342,6 +1400,10 @@ export default function RepytGame() {
 
           <button onClick={() => openDialog(statsDialogRef)} title="Navigator's Log">
             Log
+          </button>
+
+          <button onClick={() => openDialog(settingsDialogRef)} title="Ship's Settings & Preferences">
+            Settings
           </button>
 
           <button onClick={toggleSound} title={soundMuted ? 'Unmute Sound' : 'Mute Sound'} aria-label="Toggle sound">
@@ -1428,6 +1490,18 @@ export default function RepytGame() {
               </div>
 
               <div className="vault-nav-actions">
+                <button
+                  type="button"
+                  className="icon-pill-btn"
+                  onClick={() => openDialog(settingsDialogRef)}
+                  title="Preferences & Settings"
+                >
+                  <svg className="icon-svg" viewBox="0 0 24 24">
+                    <circle cx="12" cy="12" r="3" />
+                    <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z" />
+                  </svg>
+                  <span>Settings</span>
+                </button>
                 <button
                   type="button"
                   className="pill back-btn"
@@ -1674,9 +1748,9 @@ export default function RepytGame() {
                       type="button"
                       className={`icon-pill-btn ${isRecording ? 'recording' : ''}`}
                       onClick={toggleListening}
-                      title={isRecording ? 'Listening... click to stop' : 'Speak your guess hands-free'}
+                      title={!voiceEnabled ? 'Voice input disabled in Settings' : isRecording ? 'Listening... click to stop' : 'Speak your guess hands-free'}
                       aria-label="Microphone"
-                      disabled={climbSolved || remainingLeagues === 0}
+                      disabled={climbSolved || remainingLeagues === 0 || !voiceEnabled}
                     >
                       <svg className="icon-svg" viewBox="0 0 24 24">
                         <path d="M12 1a3 3 0 0 0-3 3v8a3 3 0 0 0 6 0V4a3 3 0 0 0-3-3z" />
@@ -1696,7 +1770,7 @@ export default function RepytGame() {
                   </form>
 
                   {/* Persistent Quick Selects */}
-                  {!climbSolved && remainingLeagues > 0 && (
+                  {!climbSolved && remainingLeagues > 0 && quickSelectsEnabled && (
                     <div className="starter-chips-row">
                       <span className="starter-label">Quick Selects:</span>
                       {(dailyClue.quickSelects || (dailyClue.suggestions || ['Beacon', 'Tower', 'Ocean']).map((s) => ({ word: s }))).map((item) => {
@@ -1993,6 +2067,130 @@ export default function RepytGame() {
         </div>
         <button className="pill" style={{ width: '100%' }} onClick={() => closeDialog(statsDialogRef)}>
           Close Log
+        </button>
+      </dialog>
+
+      {/* Ship's Settings & Preferences Modal */}
+      <dialog
+        ref={settingsDialogRef}
+        className="rules-dialog settings-dialog"
+        onClose={() => {
+          if (typeof document !== 'undefined' && !document.querySelectorAll('dialog[open]').length) {
+            document.documentElement.classList.remove('has-modal');
+          }
+        }}
+        onCancel={(e) => {
+          e.preventDefault();
+          closeDialog(settingsDialogRef);
+        }}
+        onClick={(e) => handleDialogBackdropClick(e, settingsDialogRef)}
+      >
+        <div className="modal-header">
+          <div>
+            <h3 className="modal-title">Ship&apos;s Settings &amp; Preferences</h3>
+            <div className="rules-modal-sub">Customise your Repyt voyage experience</div>
+          </div>
+          <button className="icon-pill-btn" onClick={() => closeDialog(settingsDialogRef)} aria-label="Close modal">
+            <svg className="icon-svg" viewBox="0 0 24 24">
+              <line x1="18" y1="6" x2="6" y2="18" />
+              <line x1="6" y1="6" x2="18" y2="18" />
+            </svg>
+          </button>
+        </div>
+
+        <div className="modal-body settings-modal-body">
+          {/* Setting 1: Vault Quick Selects */}
+          <div className="setting-row">
+            <div className="setting-info">
+              <div className="setting-label">Vault Quick Selects</div>
+              <div className="setting-desc">
+                Display curated guess chips in the Vault. Includes the target answer among hot and warm semantic bearings.
+              </div>
+            </div>
+            <label className="toggle-switch" title="Toggle Vault Quick Selects">
+              <input
+                type="checkbox"
+                checked={quickSelectsEnabled}
+                onChange={(e) => handleToggleQuickSelects(e.target.checked)}
+              />
+              <span className="toggle-slider" />
+            </label>
+          </div>
+
+          {/* Setting 2: Sound Effects & Ambience */}
+          <div className="setting-row">
+            <div className="setting-info">
+              <div className="setting-label">Sound Effects &amp; Audio</div>
+              <div className="setting-desc">
+                Synthesized sea bells, tile clicks, bearing alerts, streak fanfare, and victory cannons.
+              </div>
+            </div>
+            <label className="toggle-switch" title="Toggle Sound Effects">
+              <input
+                type="checkbox"
+                checked={!soundMuted}
+                onChange={(e) => handleToggleSound(e.target.checked)}
+              />
+              <span className="toggle-slider" />
+            </label>
+          </div>
+
+          {/* Setting 3: Spoken Pronunciation */}
+          <div className="setting-row">
+            <div className="setting-info">
+              <div className="setting-label">Spoken Pronunciation</div>
+              <div className="setting-desc">
+                Audible text-to-speech pronunciation when tapping Pronounce on navigator log words.
+              </div>
+            </div>
+            <label className="toggle-switch" title="Toggle Spoken Pronunciation">
+              <input
+                type="checkbox"
+                checked={speechAudioEnabled}
+                onChange={(e) => handleToggleSpeechAudio(e.target.checked)}
+              />
+              <span className="toggle-slider" />
+            </label>
+          </div>
+
+          {/* Setting 4: Hands-Free Voice Input */}
+          <div className="setting-row">
+            <div className="setting-info">
+              <div className="setting-label">Hands-Free Microphone</div>
+              <div className="setting-desc">
+                Enable voice recognition microphone to speak guesses and word forge letters aloud.
+              </div>
+            </div>
+            <label className="toggle-switch" title="Toggle Microphone">
+              <input
+                type="checkbox"
+                checked={voiceEnabled}
+                onChange={(e) => handleToggleVoice(e.target.checked)}
+              />
+              <span className="toggle-slider" />
+            </label>
+          </div>
+
+          {/* Setting 5: Factory Reset */}
+          <div className="settings-reset-card">
+            <div className="setting-info">
+              <div className="setting-label">Restore Settings</div>
+              <div className="setting-desc">
+                Reset all preferences to factory defaults.
+              </div>
+            </div>
+            <button
+              type="button"
+              className="icon-pill-btn reset-prefs-btn"
+              onClick={handleResetPreferences}
+            >
+              Reset Defaults
+            </button>
+          </div>
+        </div>
+
+        <button className="pill" style={{ width: '100%', marginTop: '12px' }} onClick={() => closeDialog(settingsDialogRef)}>
+          Save &amp; Return to Sea
         </button>
       </dialog>
 
